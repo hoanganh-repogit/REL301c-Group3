@@ -1,0 +1,5 @@
+# Level 2 — Train — tăng kích thước bàn so với level 1
+name: level2
+size: [15, 15]
+obstacles: []
+is_holdout: false

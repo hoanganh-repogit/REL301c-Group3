@@ -1,0 +1,13 @@
+# Level 5 — HELD-OUT — CHỈ dùng để đánh giá generalization, KHÔNG BAO GIỜ dùng để train.
+# Cùng kích thước bàn với level 4 nhưng layout vật cản hoàn toàn khác,
+# để việc chưa từng thấy layout này là thật sự "unseen" đối với agent.
+name: level5_holdout
+size: [20, 20]
+obstacles:
+  - [3, 10]
+  - [16, 10]
+  - [10, 3]
+  - [10, 16]
+  - [7, 7]
+  - [13, 13]
+is_holdout: true

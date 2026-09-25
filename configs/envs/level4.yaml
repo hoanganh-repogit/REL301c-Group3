@@ -1,0 +1,10 @@
+# Level 4 — Train — độ khó cao nhất trong tập train
+name: level4
+size: [20, 20]
+obstacles:
+  - [5, 5]
+  - [5, 14]
+  - [14, 5]
+  - [14, 14]
+  - [10, 10]
+is_holdout: false

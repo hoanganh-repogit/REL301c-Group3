@@ -1,5 +1,6 @@
-pygame
-matplotlib
-ipython
+numpy
+PyYAML
+pytest
 torch
-torchvision
+pygame-ce
+matplotlib

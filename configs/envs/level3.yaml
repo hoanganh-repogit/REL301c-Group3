@@ -1,0 +1,9 @@
+# Level 3 — Train — thêm vật cản tĩnh, cùng kích thước bàn với level 2
+name: level3
+size: [15, 15]
+# Toạ độ dạng [row, col], 0-indexed, cố định (không random mỗi lần reset)
+obstacles:
+  - [4, 4]
+  - [4, 10]
+  - [10, 7]
+is_holdout: false

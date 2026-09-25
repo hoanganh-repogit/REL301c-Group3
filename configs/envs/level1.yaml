@@ -1,0 +1,5 @@
+# Level 1 - Môi trường cho việc cấp độ dễ
+name: level1
+size: [10, 10] # [height, with]
+obstacles: [] # Không vật cản
+is_holdout: false # dùng cho train không đi test

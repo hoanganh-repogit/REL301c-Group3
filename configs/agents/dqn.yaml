@@ -1,0 +1,11 @@
+# Hyperparameter cho Double DQN + Dueling DQN
+lr: 0.001
+gamma: 0.99
+batch_size: 64
+buffer_size: 10000
+min_buffer_size_before_train: 500   # số transition tối thiểu trong buffer trước khi bắt đầu update
+target_update_freq: 1000             # số bước (không phải episode) giữa mỗi lần đồng bộ target network
+epsilon_start: 1.0
+epsilon_end: 0.01
+epsilon_decay_steps: 20000           # số bước để epsilon giảm tuyến tính từ start -> end
+hidden_dim: 128

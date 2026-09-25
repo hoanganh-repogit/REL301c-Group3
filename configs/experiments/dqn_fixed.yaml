@@ -1,0 +1,6 @@
+agent_type: dqn
+strategy: fixed
+n_episodes: 3000
+retention_eval_every: 200
+retention_n_episodes: 10
+seeds: [0, 1, 2, 3, 4]

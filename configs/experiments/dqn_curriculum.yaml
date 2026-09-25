@@ -1,0 +1,8 @@
+agent_type: dqn
+strategy: curriculum
+# 100 không khả thi trên bàn 10x10: rắn ban đầu chiếm 3 ô, chỉ còn 97 ô.
+level_up_score: 20
+n_episodes: 3000
+retention_eval_every: 200
+retention_n_episodes: 10
+seeds: [0, 1, 2, 3, 4]

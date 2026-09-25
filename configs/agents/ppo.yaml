@@ -1,0 +1,11 @@
+# Hyperparameter cho PPO
+lr: 0.0003
+gamma: 0.99
+gae_lambda: 0.95
+clip_eps: 0.2
+k_epochs: 4                # số epoch update trên cùng 1 batch rollout
+rollout_steps: 2048        # số bước thu thập trước mỗi lần update
+minibatch_size: 64
+value_loss_coef: 0.5       # c1 trong công thức L = L_CLIP - c1*L_VF + c2*S
+entropy_coef: 0.01         # c2 trong công thức trên
+hidden_dim: 128
