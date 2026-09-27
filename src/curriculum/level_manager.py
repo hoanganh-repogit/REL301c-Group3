@@ -14,7 +14,7 @@ from src.utils.config_loader import EnvConfig
 
 
 class LevelManager:
-    def __init__(self, train_levels: list[EnvConfig], level_up_score: int = 100) -> None:
+    def __init__(self, train_levels: list[EnvConfig], level_up_score: int | None = None) -> None:
         assert len(train_levels) >= 1, "Cần ít nhất 1 level để train"
         assert all(not lvl.is_holdout for lvl in train_levels), (
             "LevelManager chỉ được nhận TRAIN levels — phát hiện 1 level có is_holdout=True. "
@@ -34,12 +34,27 @@ class LevelManager:
     def is_at_max_level(self) -> bool:
         return self.current_idx == len(self.train_levels) - 1
 
+    @property
+    def current_target_score(self) -> int:
+        """Return the one-episode mastery target for the current level."""
+        if self.level_up_score is not None:
+            return self.level_up_score
+        target = self.current_level.target_score
+        if target is None:
+            raise ValueError(f"[{self.current_level.name}] Missing target_score for curriculum")
+        return target
+
     def all_levels_reached_so_far(self) -> list[EnvConfig]:
         """Toàn bộ level từ đầu tới level hiện tại — dùng cho retention evaluation
         (kiểm tra agent có quên level cũ khi đang học level mới không)."""
         return self.train_levels[: self.current_idx + 1]
 
-    def report_episode_result(self, episode_score: int, episode_idx: int) -> dict:
+    def report_episode_result(
+        self,
+        episode_score: int,
+        episode_idx: int,
+        completed_without_death: bool = True,
+    ) -> dict:
         """Gọi sau khi 1 episode kết thúc. Trả về dict thông tin để logging.
 
         Args:
@@ -56,11 +71,14 @@ class LevelManager:
         leveled_up = False
         mastered_level_name = None
 
-        if episode_score >= self.level_up_score and not self.is_at_max_level:
+        reached_target = completed_without_death and episode_score >= self.current_target_score
+        already_mastered = self.current_level.name in self.mastered_at_episode
+        if reached_target and not already_mastered:
             mastered_level_name = self.current_level.name
             self.mastered_at_episode[mastered_level_name] = episode_idx
-            self.current_idx += 1
-            leveled_up = True
+            if not self.is_at_max_level:
+                self.current_idx += 1
+                leveled_up = True
 
         return {
             "leveled_up": leveled_up,

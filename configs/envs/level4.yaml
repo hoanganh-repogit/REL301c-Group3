@@ -1,5 +1,6 @@
 # Level 4 — Train — độ khó cao nhất trong tập train
 name: level4
+target_score: 55
 size: [20, 20]
 obstacles:
   - [5, 5]

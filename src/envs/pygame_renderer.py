@@ -112,6 +112,7 @@ class SnakeRenderer:
         )
         line2 = (
             f"{env.config.name}  score: {env.score}  steps: {env.steps}  "
+            f"without food: {env.steps_since_food}/{env.max_steps_without_food}  "
             f"direction: {env.direction}"
         )
         extra = metadata.get("extra", "")

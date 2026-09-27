@@ -61,6 +61,29 @@ def test_level_manager_does_not_level_up_below_threshold():
     assert lm.current_level.name == "L1"  # vẫn ở nguyên level cũ -> episode tiếp theo tự động replay
 
 
+def test_level_manager_does_not_level_up_when_episode_ends_in_death():
+    lm = LevelManager(TRAIN_LEVELS, level_up_score=100)
+    result = lm.report_episode_result(
+        episode_score=100,
+        episode_idx=5,
+        completed_without_death=False,
+    )
+    assert result["leveled_up"] is False
+    assert lm.current_level.name == "L1"
+
+
+def test_level_manager_uses_target_score_from_each_level():
+    levels = [
+        EnvConfig(name="L1", height=10, width=10, target_score=25),
+        EnvConfig(name="L2", height=15, width=15, target_score=35),
+    ]
+    lm = LevelManager(levels)
+    assert lm.current_target_score == 25
+    lm.report_episode_result(25, episode_idx=1, completed_without_death=True)
+    assert lm.current_level.name == "L2"
+    assert lm.current_target_score == 35
+
+
 def test_level_manager_stops_at_max_level():
     """Đạt ngưỡng ở level CUỐI CÙNG (L4) thì không được lên nữa (không có level 5 nào để lên
     trong tập train — level 5 là held-out, không thuộc train_levels)."""

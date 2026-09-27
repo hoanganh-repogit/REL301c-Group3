@@ -37,7 +37,7 @@ REWARD_STEP = -0.01 # phạt nhẹ mỗi bước, khuyến khích agent đi hi�
 Giới hạn số bước tối đa 1 episode (an toàn, tránh vòng lặp vô hạn khi
 agent chưa học được gì, ví dụ với random policy lúc sanity-check).
 """
-_MAX_STEPS_PER_CELL = 100 # số bước tối đa = số ô bàn cờ * hệ số này
+_MAX_STEPS_WITHOUT_FOOD_PER_CELL = 2
 
 class SnakeEnv:
     """Môi trường Snake, tham số hoá theo EnvConfig (1 level)."""
@@ -47,7 +47,11 @@ class SnakeEnv:
         self.height = config.height
         self.width = config.width
         self.obstacles: set[tuple[int, int]] = set(config.obstacles)
-        self.max_steps = self.height * self.width * _MAX_STEPS_PER_CELL // 100 + 200
+        # Timeout theo số bước liên tiếp không ăn được mồi, không theo tổng độ
+        # dài episode. Ăn mồi sẽ reset bộ đếm để target cao vẫn khả thi.
+        self.max_steps_without_food = (
+            self.height * self.width * _MAX_STEPS_WITHOUT_FOOD_PER_CELL
+        )
 
         self.rng = np.random.RandomState(seed=seed)
 
@@ -57,6 +61,7 @@ class SnakeEnv:
         self.food_ops: tuple[int, int] = (0, 0)
         self.score: int = 0
         self.steps: int = 0
+        self.steps_since_food: int = 0
 
     # ------------------------------------------------------------------ #
     # Reset
@@ -71,6 +76,7 @@ class SnakeEnv:
         self.direction = "RIGHT"
         self.score = 0
         self.steps = 0
+        self.steps_since_food = 0
         self.food_pos = self._sample_food_position()
 
         state = encode_state(
@@ -157,6 +163,7 @@ class SnakeEnv:
             death_cause = "self"
 
         self.steps += 1
+        self.steps_since_food += 1
 
         if death_cause is not None:
             reward = REWARD_DEATH
@@ -178,6 +185,7 @@ class SnakeEnv:
         new_body = [new_head] + self.snake_body
         if will_grow:
             self.score += 1
+            self.steps_since_food = 0
             reward = REWARD_FOOD
             # không pop đuôi -> rắn dài ra
         else:
@@ -203,7 +211,7 @@ class SnakeEnv:
                 return state, reward, done, {"score": self.score, "death_cause": death_cause}
             self.food_pos = self._sample_food_position()
 
-        done = self.steps >= self.max_steps
+        done = self.steps_since_food >= self.max_steps_without_food
         death_cause = "timeout" if done else None
 
         state = encode_state(

@@ -2,6 +2,7 @@
 # Cùng kích thước bàn với level 4 nhưng layout vật cản hoàn toàn khác,
 # để việc chưa từng thấy layout này là thật sự "unseen" đối với agent.
 name: level5_holdout
+target_score: 100
 size: [20, 20]
 obstacles:
   - [3, 10]

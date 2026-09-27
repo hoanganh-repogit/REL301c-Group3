@@ -34,7 +34,7 @@ class _FastSnakeEnv(SnakeEnv):
 
     def __init__(self, config, seed=None):
         super().__init__(config, seed)
-        self.max_steps = 150
+        self.max_steps_without_food = 150
 
 
 train_loop.SnakeEnv = _FastSnakeEnv  # monkeypatch riêng cho sanity check

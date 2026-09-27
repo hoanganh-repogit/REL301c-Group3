@@ -46,12 +46,26 @@ def evaluate_agent(
         while not done:
             action = act_fn(state)
             state, reward, done, info = env.step(action)
+            if (
+                env_config.is_holdout
+                and env_config.target_score is not None
+                and info["score"] >= env_config.target_score
+            ):
+                done = True
         scores.append(info["score"])
 
+    target_score = env_config.target_score
+    success_rate = (
+        float(np.mean([score >= target_score for score in scores]))
+        if target_score is not None
+        else None
+    )
     return {
         "mean_score": float(np.mean(scores)),
         "std_score": float(np.std(scores)),
         "scores": scores,
+        "target_score": target_score,
+        "success_rate": success_rate,
     }
 
 

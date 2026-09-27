@@ -58,14 +58,22 @@ def train_dqn_with_strategy(
 
         state = env.reset()
         done = False
+        completed_without_death = False
         info = {"score": 0, "death_cause": None}
 
         while not done:
             action = agent.act(state)  # epsilon-greedy
             next_state, reward, done, info = env.step(action)
-            agent.store(state, action, reward, next_state, done)
+            target_score = strategy.episode_target_score()
+            completed_without_death = (
+                not done and target_score is not None and info["score"] >= target_score
+            )
+            transition_done = done or completed_without_death
+            agent.store(state, action, reward, next_state, transition_done)
             agent.update()  # DQN: update mỗi bước (no-op nếu buffer chưa đủ)
             state = next_state
+            if completed_without_death:
+                done = True
             if renderer is not None and (episode_idx - 1) % render_every == 0:
                 visible = renderer.draw(
                     env,
@@ -74,13 +82,16 @@ def train_dqn_with_strategy(
                         "strategy": strategy.name,
                         "seed": seed,
                         "episode": episode_idx,
-                        "extra": f"epsilon: {agent.epsilon():.3f}",
+                        "extra": (
+                            f"epsilon: {agent.epsilon():.3f} | "
+                            f"target: {target_score if target_score is not None else '-'}"
+                        ),
                     },
                 )
                 if not visible:
                     renderer = None
 
-        result = strategy.end_episode(info["score"])
+        result = strategy.end_episode(info["score"], completed_without_death)
 
         episode_logger.log(
             episode=episode_idx,
@@ -161,13 +172,21 @@ def train_ppo_with_strategy(
 
         state = env.reset()
         done = False
+        completed_without_death = False
         info = {"score": 0, "death_cause": None}
 
         while not done:
             action, log_prob, value = agent.act(state)
             next_state, reward, done, info = env.step(action)
-            agent.store(state, action, reward, done, log_prob, value)
+            target_score = strategy.episode_target_score()
+            completed_without_death = (
+                not done and target_score is not None and info["score"] >= target_score
+            )
+            transition_done = done or completed_without_death
+            agent.store(state, action, reward, transition_done, log_prob, value)
             state = next_state
+            if completed_without_death:
+                done = True
             if renderer is not None and (episode_idx - 1) % render_every == 0:
                 visible = renderer.draw(
                     env,
@@ -176,13 +195,16 @@ def train_ppo_with_strategy(
                         "strategy": strategy.name,
                         "seed": seed,
                         "episode": episode_idx,
-                        "extra": f"rollout steps: {len(agent.buffer)}",
+                        "extra": (
+                            f"rollout steps: {len(agent.buffer)} | "
+                            f"target: {target_score if target_score is not None else '-'}"
+                        ),
                     },
                 )
                 if not visible:
                     renderer = None
 
-        result = strategy.end_episode(info["score"])
+        result = strategy.end_episode(info["score"], completed_without_death)
 
         episode_logger.log(
             episode=episode_idx,

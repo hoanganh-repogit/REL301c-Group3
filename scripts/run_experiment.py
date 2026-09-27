@@ -111,6 +111,8 @@ def evaluate_and_save(agent, agent_type: str, levels: list, n_episodes: int, see
                 "mean_score": result["mean_score"],
                 "std_score": result["std_score"],
                 "n_episodes": n_episodes,
+                "target_score": result["target_score"],
+                "success_rate": result["success_rate"],
             }
         )
 
@@ -124,7 +126,11 @@ def evaluate_and_save(agent, agent_type: str, levels: list, n_episodes: int, see
         "levels": level_rows,
     }
     write_csv(run_dir / "evaluation_episodes.csv", raw_rows, ["level", "episode", "score"])
-    write_csv(run_dir / "evaluation_by_level.csv", level_rows, ["level", "mean_score", "std_score", "n_episodes"])
+    write_csv(
+        run_dir / "evaluation_by_level.csv",
+        level_rows,
+        ["level", "mean_score", "std_score", "n_episodes", "target_score", "success_rate"],
+    )
     write_json(run_dir / "evaluation_summary.json", summary)
     return summary
 
@@ -206,8 +212,6 @@ def run_one(config_path: Path, args: argparse.Namespace) -> None:
         strategy_kwargs = {}
         if strategy_name == "random_dr":
             strategy_kwargs["seed"] = seed
-        elif strategy_name == "curriculum":
-            strategy_kwargs["level_up_score"] = int(experiment["level_up_score"])
         strategy = make_strategy(strategy_name, train_levels, **strategy_kwargs)
         agent = build_agent(agent_type)
 

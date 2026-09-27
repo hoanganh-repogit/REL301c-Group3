@@ -30,7 +30,7 @@ class BaseStrategy(ABC):
         """Trả về EnvConfig của level sẽ dùng cho episode SẮP chạy."""
 
     @abstractmethod
-    def end_episode(self, episode_score: int) -> dict:
+    def end_episode(self, episode_score: int, completed_without_death: bool = True) -> dict:
         """Cập nhật trạng thái nội bộ sau khi 1 episode kết thúc.
 
         Returns dict tối thiểu gồm: {"leveled_up": bool, "mastered_level": str|None, "current_level": str}
@@ -39,6 +39,10 @@ class BaseStrategy(ABC):
     @abstractmethod
     def known_levels_for_retention(self) -> list[EnvConfig]:
         """Danh sách level cần đưa vào retention evaluation định kỳ (Giai đoạn 3, bước 19)."""
+
+
+    def episode_target_score(self) -> int | None:
+        return None
 
 
 class FixedStrategy(BaseStrategy):
@@ -53,7 +57,7 @@ class FixedStrategy(BaseStrategy):
     def start_episode(self) -> EnvConfig:
         return self.level
 
-    def end_episode(self, episode_score: int) -> dict:
+    def end_episode(self, episode_score: int, completed_without_death: bool = True) -> dict:
         return {"leveled_up": False, "mastered_level": None, "current_level": self.level.name}
 
     def known_levels_for_retention(self) -> list[EnvConfig]:
@@ -75,7 +79,7 @@ class RandomDRStrategy(BaseStrategy):
         self._current_level = self.rng.choice(self.train_levels)
         return self._current_level
 
-    def end_episode(self, episode_score: int) -> dict:
+    def end_episode(self, episode_score: int, completed_without_death: bool = True) -> dict:
         assert self._current_level is not None, "end_episode() gọi trước start_episode()"
         return {"leveled_up": False, "mastered_level": None, "current_level": self._current_level.name}
 
@@ -90,16 +94,23 @@ class CurriculumStrategy(BaseStrategy):
 
     name = "curriculum"
 
-    def __init__(self, train_levels: list[EnvConfig], level_up_score: int = 100) -> None:
+    def __init__(self, train_levels: list[EnvConfig], level_up_score: int | None = None) -> None:
         self.level_manager = LevelManager(train_levels, level_up_score)
         self._episode_counter = 0
 
     def start_episode(self) -> EnvConfig:
         return self.level_manager.current_level
 
-    def end_episode(self, episode_score: int) -> dict:
+    def end_episode(self, episode_score: int, completed_without_death: bool = True) -> dict:
         self._episode_counter += 1
-        return self.level_manager.report_episode_result(episode_score, self._episode_counter)
+        return self.level_manager.report_episode_result(
+            episode_score,
+            self._episode_counter,
+            completed_without_death=completed_without_death,
+        )
+
+    def episode_target_score(self) -> int | None:
+        return self.level_manager.current_target_score
 
     def known_levels_for_retention(self) -> list[EnvConfig]:
         # Chỉ những level ĐÃ đi qua tính tới thời điểm hiện tại -> retention check

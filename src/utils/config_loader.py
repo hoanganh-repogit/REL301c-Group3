@@ -26,6 +26,7 @@ class EnvConfig:
     width: int
     obstacles: list[tuple[int, int]] = field(default_factory=list)
     is_holdout: bool = False
+    target_score: int | None = None
 
     def __post_init__(self) -> None:
         # Validate cơ bản, fail sớm nếu config sai
@@ -40,6 +41,9 @@ class EnvConfig:
                 f"kích thước ({self.height}, {self.width})."
             )
         # Không cho phép vật cản trùng toạ độ nhau
+        if self.target_score is not None:
+            assert self.target_score > 0, f"[{self.name}] target_score must be greater than zero"
+
         assert len(self.obstacles) == len(set(self.obstacles)), (
             f"[{self.name}] Có toạ độ vật cản bị trùng lặp."
         )
@@ -62,7 +66,14 @@ def load_env_config(yaml_path: str) -> EnvConfig:
     height, width = raw["size"]
     obstacles = [tuple(o) for o in raw.get("obstacles", [])]
 
-    return EnvConfig(name=raw["name"], height=height, width=width, obstacles=obstacles, is_holdout=raw["is_holdout"])
+    return EnvConfig(
+        name=raw["name"],
+        height=height,
+        width=width,
+        obstacles=obstacles,
+        is_holdout=raw["is_holdout"],
+        target_score=raw.get("target_score"),
+    )
 
 def load_all_levels(envs_dir: str) -> dict[str, EnvConfig]:
     """

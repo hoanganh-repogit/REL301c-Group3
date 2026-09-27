@@ -5,7 +5,7 @@
       <sourceFolder url="file://$MODULE_DIR$" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/src" isTestSource="false" />
     </content>
-    <orderEntry type="jdk" jdkName="~\miniconda3\envs\myenv" jdkType="Python SDK" />
+    <orderEntry type="jdk" jdkName="C:\Users\Admin\miniconda3\envs\myenvs" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
   </component>
 </module>

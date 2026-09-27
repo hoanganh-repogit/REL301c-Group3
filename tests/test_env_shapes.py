@@ -65,3 +65,20 @@ def test_level5_is_marked_holdout():
 def test_load_all_levels_returns_all_configs():
     levels = load_all_levels(CONFIG_DIR)
     assert set(levels) == {"level1", "level2", "level3", "level4", "level5_holdout"}
+
+
+def test_timeout_counter_resets_after_eating_food():
+    config = load_env_config(os.path.join(CONFIG_DIR, "level1.yaml"))
+    env = SnakeEnv(config, seed=0)
+    env.reset()
+    env.snake_body = [(5, 5), (5, 4), (5, 3)]
+    env.direction = "RIGHT"
+    env.food_pos = (5, 6)
+    env.steps_since_food = 10
+
+    _, reward, done, info = env.step(3)  # RIGHT
+
+    assert reward > 0
+    assert done is False
+    assert info["score"] == 1
+    assert env.steps_since_food == 0

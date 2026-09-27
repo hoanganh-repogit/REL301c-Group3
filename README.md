@@ -1,5 +1,10 @@
 # Snake RL Generalization Study
 
+Curriculum uses one-episode mastery targets configured per level: Level 1 = 25,
+Level 2 = 35, Level 3 = 45, and Level 4 = 55. Scores are never accumulated
+across deaths. Level 5 remains evaluation-only and is capped at the 100-point
+evaluation target.
+
 Dự án so sánh Dueling Double DQN và PPO trên ba chiến lược huấn luyện:
 `fixed`, `random_dr` và `curriculum`. Level 1–4 là training environments;
 `level5_holdout` chỉ được nạp sau khi training kết thúc.
