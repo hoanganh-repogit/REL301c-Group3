@@ -66,7 +66,8 @@ def train_dqn_with_strategy(
             next_state, reward, done, info = env.step(action)
             target_score = strategy.episode_target_score()
             completed_without_death = (
-                not done and target_score is not None and info["score"] >= target_score
+                info.get("death_cause") == "target_reached"
+                or (not done and target_score is not None and info["score"] >= target_score)
             )
             transition_done = done or completed_without_death
             agent.store(state, action, reward, next_state, transition_done)
@@ -180,7 +181,8 @@ def train_ppo_with_strategy(
             next_state, reward, done, info = env.step(action)
             target_score = strategy.episode_target_score()
             completed_without_death = (
-                not done and target_score is not None and info["score"] >= target_score
+                info.get("death_cause") == "target_reached"
+                or (not done and target_score is not None and info["score"] >= target_score)
             )
             transition_done = done or completed_without_death
             agent.store(state, action, reward, transition_done, log_prob, value)

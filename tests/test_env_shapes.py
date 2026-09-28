@@ -76,7 +76,7 @@ def test_timeout_counter_resets_after_eating_food():
     env.food_pos = (5, 6)
     env.steps_since_food = 10
 
-    _, reward, done, info = env.step(3)  # RIGHT
+    _, reward, done, info = env.step(0)  # STRAIGHT while facing RIGHT
 
     assert reward > 0
     assert done is False

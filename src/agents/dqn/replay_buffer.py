@@ -24,16 +24,25 @@ class Transition(NamedTuple):
     reward: float
     next_state: np.ndarray  # shape (STATE_DIM,)
     done: bool
+    level: str
 
 class ReplayBuffer:
     def __init__(self, capacity: int) -> None:
         self.capacity = capacity
         self.buffer: deque[Transition] = deque(maxlen=capacity)
 
-    def push (self, state: np.ndarray, action: int, reward: float, next_state: np.ndarray, done: bool) -> None:
+    def push(
+        self,
+        state: np.ndarray,
+        action: int,
+        reward: float,
+        next_state: np.ndarray,
+        done: bool,
+        level: str = "default",
+    ) -> None:
         assert state.shape == (STATE_DIM,), f"state shape sai khi push vào buffer: {state.shape}"
         assert next_state.shape == (STATE_DIM,), f"next_state shape sai khi push vào buffer: {next_state.shape}"
-        self.buffer.append(Transition(state, action, reward, next_state, done))
+        self.buffer.append(Transition(state, action, reward, next_state, done, level))
 
     def __len__(self) -> int:
         return len(self.buffer)
@@ -45,7 +54,12 @@ class ReplayBuffer:
         """
         self.buffer.clear()
 
-    def sample(self, batch_size: int, device: torch.device) -> tuple[torch.Tensor, ...]:
+    def sample(
+        self,
+        batch_size: int,
+        device: torch.device,
+        balanced_by_level: bool = False,
+    ) -> tuple[torch.Tensor, ...]:
         """
         Sample ngẫu nhiên 1 minibatch, trả về tensor sẵn sàng đưa vào network.
 
@@ -60,7 +74,25 @@ class ReplayBuffer:
             f"Buffer chỉ có {len(self.buffer)} transition, không đủ để sample batch_size={batch_size}"
         )
 
-        batch = random.sample(self.buffer, batch_size)
+        if balanced_by_level:
+            by_level: dict[str, list[Transition]] = {}
+            for transition in self.buffer:
+                by_level.setdefault(transition.level, []).append(transition)
+
+            levels = sorted(by_level)
+            base = batch_size // len(levels)
+            remainder = batch_size % len(levels)
+            batch = []
+            for index, level in enumerate(levels):
+                wanted = base + (1 if index < remainder else 0)
+                candidates = by_level[level]
+                if len(candidates) >= wanted:
+                    batch.extend(random.sample(candidates, wanted))
+                else:
+                    batch.extend(random.choices(candidates, k=wanted))
+            random.shuffle(batch)
+        else:
+            batch = random.sample(self.buffer, batch_size)
 
         states = torch.tensor(np.stack([t.state for t in batch]), dtype=torch.float32, device=device)
         actions = torch.tensor([t.action for t in batch], dtype=torch.int64, device=device)

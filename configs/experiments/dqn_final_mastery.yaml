@@ -1,0 +1,35 @@
+agent_type: dqn
+strategy: fixed_level4_mastery
+seed: 0
+
+# Final model chỉ học duy nhất môi trường Level 4.
+training_levels:
+  - level4
+
+# 0 = không giới hạn episode/environment-step; dừng bằng tiêu chuẩn mastery.
+max_env_steps: 0
+evaluation_every_env_steps: 50000
+evaluation_episodes_per_level: 50
+# Một episode chỉ thành công nếu đạt target_score trước khi chết.
+# Không còn level-up. Đây chỉ là chuẩn dừng cuối: ít nhất 40/50 episode
+# đạt target mà không chết trong 2 lần evaluation liên tiếp.
+mastery_success_rate: 0.80
+required_consecutive_mastery_checks: 2
+
+# Với một level, xác suất này luôn tương đương 100% Level 4.
+current_level_probability: 1.0
+save_every_episodes: 250
+
+agent:
+  lr: 0.0005
+  gamma: 0.99
+  batch_size: 128
+  buffer_size: 200000
+  min_buffer_size_before_train: 2000
+  target_update_freq: 2000
+  epsilon_start: 1.0
+  epsilon_end: 0.02
+  epsilon_decay_steps: 250000
+  hidden_dim: 256
+  gradient_clip_norm: 10.0
+  balanced_replay: true

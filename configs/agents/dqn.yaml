@@ -9,3 +9,5 @@ epsilon_start: 1.0
 epsilon_end: 0.01
 epsilon_decay_steps: 20000           # số bước để epsilon giảm tuyến tính từ start -> end
 hidden_dim: 128
+gradient_clip_norm: 10.0
+balanced_replay: false

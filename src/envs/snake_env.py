@@ -12,26 +12,29 @@ from src.envs.state_encoder import (DIRECTION_VECTOR, STATE_DIM, encode_state)
 from src.utils.config_loader import EnvConfig
 
 
-# Action space: 4 hướng tuyệt đối
-ACTION_SPACE = 4
-ACTION_TO_DIRECTION = {
-    0: "UP",
-    1: "DOWN",
-    2: "LEFT",
-    3: "RIGHT",
-}
+# Ba action tương đối: đi thẳng, rẽ phải, rẽ trái. Action agent chọn luôn
+# trùng với chuyển động môi trường thực hiện, không còn action quay ngược bị bỏ qua.
+ACTION_SPACE = 3
+ACTION_TO_TURN = {0: "STRAIGHT", 1: "RIGHT", 2: "LEFT"}
+_CLOCKWISE = ["UP", "RIGHT", "DOWN", "LEFT"]
 
-"""
-Hướng đối lập — dùng để chặn agent tự đảo chiều 180 độ tức thời
-(hành vi chuẩn trong hầu hết game Snake: bấm hướng ngược lại bị bỏ qua,
-không phải là chết ngay).
-"""
-_OPPOSITE = {"UP": "DOWN", "DOWN": "UP", "LEFT": "RIGHT", "RIGHT": "LEFT"}
+
+def _apply_relative_turn(direction: str, turn: str) -> str:
+    idx = _CLOCKWISE.index(direction)
+    if turn == "STRAIGHT":
+        return direction
+    if turn == "RIGHT":
+        return _CLOCKWISE[(idx + 1) % 4]
+    if turn == "LEFT":
+        return _CLOCKWISE[(idx - 1) % 4]
+    raise ValueError(f"Unknown relative turn: {turn}")
 
 # Hệ số reward — CỐ ĐỊNH, dùng chung cho mọi level để so sánh công bằng
 REWARD_FOOD = 10.0
 REWARD_DEATH = -10.0
 REWARD_STEP = -0.01 # phạt nhẹ mỗi bước, khuyến khích agent đi hiệu quả
+REWARD_CLOSER = 0.05
+REWARD_FARTHER = -0.05
 
 """
 Giới hạn số bước tối đa 1 episode (an toàn, tránh vòng lặp vô hạn khi
@@ -128,23 +131,19 @@ class SnakeEnv:
         Thực hiện 1 action.
 
         Args:
-            action: int trong {0,1,2,3}, tra bằng ACTION_TO_DIRECTION.
+            action: 0=STRAIGHT, 1=TURN_RIGHT, 2=TURN_LEFT.
 
         Returns:
             (state, reward, done, info) — state shape (STATE_DIM,).
             info gồm: score (số mồi đã ăn), death_cause (None nếu chưa chết).
         """
-        assert action in ACTION_TO_DIRECTION, f"action không hợp lệ: {action}"
-        requested_dir = ACTION_TO_DIRECTION[action]
-        # Chặn đảo chiều 180 độ tức thời khi rắn dài hơn 1 ô
-        if requested_dir == _OPPOSITE[self.direction] and len(self.snake_body):
-            actual_dir = self.direction
-        else:
-            actual_dir = requested_dir
+        assert action in ACTION_TO_TURN, f"action không hợp lệ: {action}"
+        actual_dir = _apply_relative_turn(self.direction, ACTION_TO_TURN[action])
 
         dr, dc = DIRECTION_VECTOR[actual_dir]
         head_r, head_c = self.snake_body[0]
         new_head = (head_r + dr, head_c + dc)
+        old_food_distance = abs(head_r - self.food_pos[0]) + abs(head_c - self.food_pos[1])
 
         will_grow = new_head == self.food_pos
 
@@ -190,7 +189,9 @@ class SnakeEnv:
             # không pop đuôi -> rắn dài ra
         else:
             new_body.pop()  # bỏ ô đuôi cũ
-            reward = REWARD_STEP
+            new_food_distance = abs(new_head[0] - self.food_pos[0]) + abs(new_head[1] - self.food_pos[1])
+            distance_reward = REWARD_CLOSER if new_food_distance < old_food_distance else REWARD_FARTHER
+            reward = REWARD_STEP + distance_reward
         self.snake_body = new_body
 
         # Chỉ sample sau khi đã cập nhật thân rắn, nếu không mồi mới có thể
@@ -210,6 +211,20 @@ class SnakeEnv:
                 )
                 return state, reward, done, {"score": self.score, "death_cause": death_cause}
             self.food_pos = self._sample_food_position()
+
+            if self.config.target_score is not None and self.score >= self.config.target_score:
+                state = encode_state(
+                    snake_body=self.snake_body,
+                    direction=self.direction,
+                    food_pos=self.food_pos,
+                    height=self.height,
+                    width=self.width,
+                    obstacles=self.obstacles,
+                )
+                return state, reward, True, {
+                    "score": self.score,
+                    "death_cause": "target_reached",
+                }
 
         done = self.steps_since_food >= self.max_steps_without_food
         death_cause = "timeout" if done else None

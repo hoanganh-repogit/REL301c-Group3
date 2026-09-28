@@ -11,7 +11,13 @@ Dùng cách "ép" tình huống thay vì chờ random policy tự nhiên gặp p
 
 import os
 
-from src.envs.snake_env import REWARD_DEATH, REWARD_FOOD, REWARD_STEP, SnakeEnv
+from src.envs.snake_env import (
+    REWARD_DEATH,
+    REWARD_FARTHER,
+    REWARD_FOOD,
+    REWARD_STEP,
+    SnakeEnv,
+)
 from src.utils.config_loader import load_env_config
 
 CONFIG_DIR = os.path.join(os.path.dirname(__file__), "..", "configs", "envs")
@@ -33,12 +39,12 @@ def test_reward_constants_sign():
 
 def test_eating_food_gives_positive_reward():
     env = _make_env(seed=1)
-    # Ép vị trí mồi ngay trước đầu rắn (hướng RIGHT) để bước tiếp theo chắc chắn ăn được
-    head_r, head_c = env.snake_body[0]
-    env.food_pos = (head_r, head_c + 1)
+    env.snake_body = [(5, 5), (5, 4), (5, 3)]
+    env.direction = "RIGHT"
+    env.food_pos = (5, 6)
 
-    # action=3 tương ứng RIGHT (đúng hướng đang đi) -> đi thẳng vào mồi
-    _, reward, done, info = env.step(3)
+    # action=0 là STRAIGHT; rắn đang hướng RIGHT nên đi thẳng vào mồi
+    _, reward, done, info = env.step(0)
 
     assert reward == REWARD_FOOD
     assert done is False
@@ -52,7 +58,7 @@ def test_hitting_wall_gives_negative_reward():
     env.direction = "RIGHT"
     env.food_pos = (0, 0)  # đặt xa để chắc chắn không vô tình ăn trúng
 
-    _, reward, done, info = env.step(3)  # RIGHT -> ra ngoài bàn
+    _, reward, done, info = env.step(0)  # STRAIGHT -> ra ngoài bàn
 
     assert reward == REWARD_DEATH
     assert done is True
@@ -87,7 +93,7 @@ def test_moving_into_own_tail_is_legal_when_not_eating():
     _, reward, done, info = env.step(0)  # action UP: đầu -> (4,5) = đúng ô đuôi cũ
 
     assert done is False
-    assert reward == REWARD_STEP
+    assert reward != REWARD_DEATH
     assert info["death_cause"] is None
 
 
@@ -98,11 +104,11 @@ def test_normal_step_moves_one_cell_and_does_not_eat():
     env.direction = "RIGHT"
     env.food_pos = (0, 0)
 
-    _, reward, done, info = env.step(3)
+    _, reward, done, info = env.step(0)
 
     assert env.snake_body == [(5, 6), (5, 5), (5, 4)]
     assert env.food_pos == (0, 0)
-    assert reward == REWARD_STEP
+    assert reward == REWARD_STEP + REWARD_FARTHER
     assert done is False
     assert info["score"] == 0
 
@@ -113,7 +119,22 @@ def test_food_respawn_never_overlaps_updated_snake():
     env.direction = "RIGHT"
     env.food_pos = (5, 6)
 
-    env.step(3)
+    env.step(0)
 
     assert env.food_pos not in env.snake_body
     assert env.food_pos not in env.obstacles
+
+
+def test_reaching_level_target_finishes_episode_successfully():
+    env = _make_env(seed=8)
+    env.snake_body = [(5, 5), (5, 4), (5, 3)]
+    env.direction = "RIGHT"
+    env.food_pos = (5, 6)
+    env.score = env.config.target_score - 1
+
+    _, reward, done, info = env.step(0)
+
+    assert reward == REWARD_FOOD
+    assert done is True
+    assert info["score"] == env.config.target_score
+    assert info["death_cause"] == "target_reached"

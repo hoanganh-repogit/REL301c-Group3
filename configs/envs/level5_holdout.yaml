@@ -3,7 +3,7 @@
 # để việc chưa từng thấy layout này là thật sự "unseen" đối với agent.
 name: level5_holdout
 target_score: 100
-size: [20, 20]
+size: [30, 30]
 obstacles:
   - [3, 10]
   - [16, 10]

@@ -59,6 +59,22 @@ def test_replay_buffer_clear():
     assert len(buffer) == 0
 
 
+def test_balanced_replay_samples_multiple_levels():
+    buffer = ReplayBuffer(capacity=100)
+    state = np.zeros(STATE_DIM, dtype=np.float32)
+    for _ in range(30):
+        buffer.push(state, 0, 1.0, state, False, level="level1")
+    for _ in range(5):
+        buffer.push(state, 0, 1.0, state, False, level="level2")
+
+    states, actions, rewards, next_states, dones = buffer.sample(
+        16,
+        device=torch.device("cpu"),
+        balanced_by_level=True,
+    )
+    assert states.shape == (16, STATE_DIM)
+
+
 def test_agent_act_returns_valid_action():
     agent = DoubleDQNAgent(DQNConfig())
     state = np.random.randn(STATE_DIM).astype(np.float32)

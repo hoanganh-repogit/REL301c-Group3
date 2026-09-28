@@ -37,6 +37,8 @@ class DQNConfig:
     epsilon_end: float = 0.01
     epsilon_decay_steps: int = 20000
     hidden_dim: int = 128
+    gradient_clip_norm: float = 10.0
+    balanced_replay: bool = False
 
 class DoubleDQNAgent:
     def __init__(self, config: DQNConfig, device: torch.device | None = None) -> None:
@@ -50,25 +52,39 @@ class DoubleDQNAgent:
         self.optimizer = torch.optim.Adam(self.online_net.parameters(), lr=config.lr)
         self.buffer = ReplayBuffer(config.buffer_size)
 
-        self.total_env_steps = 0 # dùng cho epsilon decay VÀ target update freq
+        self.total_env_steps = 0
+        self.epsilon_steps = 0
+        self.total_updates = 0
+        self.last_update_metrics: dict[str, float] | None = None
 
     # ------------------------------------------------------------------ #
     # Epsilon schedule
     # ------------------------------------------------------------------ #
     def epsilon(self) -> float:
         """Epsilon giảm TUYẾN TÍNH từ epsilon_start -> epsilon_end trong epsilon_decay_steps bước."""
-        frac = min(1.0, self.total_env_steps / self.config.epsilon_decay_steps)
+        frac = min(1.0, self.epsilon_steps / self.config.epsilon_decay_steps)
         return self.config.epsilon_start + frac * (self.config.epsilon_end - self.config.epsilon_start)
 
-    def reset_epsilon_schedule(self) -> None:
+    def reset_epsilon_schedule(self, start_epsilon: float | None = None) -> None:
         """
-        Reset lại bộ đếm bước -> epsilon quay về epsilon_start.
+        Đưa epsilon về epsilon_start hoặc một giá trị exploration được chỉ định.
 
-        Dùng ở Giai đoạn 3 (curriculum): mỗi khi agent lên level mới, tăng lại
-        exploration để agent khám phá môi trường mới thay vì exploit ngay
-        theo thói quen học được ở level cũ.
+        Dùng trong curriculum để tăng exploration khi mở level mới mà vẫn có
+        thể giữ phần lớn policy đã học ở level cũ.
         """
-        self.total_env_steps = 0
+        if start_epsilon is None:
+            self.epsilon_steps = 0
+            return
+
+        high = max(self.config.epsilon_start, self.config.epsilon_end)
+        low = min(self.config.epsilon_start, self.config.epsilon_end)
+        desired = min(max(float(start_epsilon), low), high)
+        span = self.config.epsilon_start - self.config.epsilon_end
+        if abs(span) < 1e-12:
+            self.epsilon_steps = 0
+            return
+        fraction = (self.config.epsilon_start - desired) / span
+        self.epsilon_steps = int(round(fraction * self.config.epsilon_decay_steps))
 
     # ------------------------------------------------------------------ #
     # Action selection
@@ -88,6 +104,7 @@ class DoubleDQNAgent:
 
         if not greedy:
             self.total_env_steps += 1
+            self.epsilon_steps += 1
             if random.random() < self.epsilon():
                 return random.randrange(ACTION_SPACE)
 
@@ -100,8 +117,16 @@ class DoubleDQNAgent:
     # ------------------------------------------------------------------ #
     # Store transition
     # ------------------------------------------------------------------ #
-    def store(self, state: np.ndarray, action: int, reward: float, next_state: np.ndarray, done: bool) -> None:
-        self.buffer.push(state, action, reward, next_state, done)
+    def store(
+        self,
+        state: np.ndarray,
+        action: int,
+        reward: float,
+        next_state: np.ndarray,
+        done: bool,
+        level: str = "default",
+    ) -> None:
+        self.buffer.push(state, action, reward, next_state, done, level)
 
     # ------------------------------------------------------------------ #
     # Training step
@@ -118,7 +143,11 @@ class DoubleDQNAgent:
         if len(self.buffer) < min_needed:
             return None
 
-        states, actions, rewards, next_states, dones = self.buffer.sample(self.config.batch_size, self.device)
+        states, actions, rewards, next_states, dones = self.buffer.sample(
+            self.config.batch_size,
+            self.device,
+            balanced_by_level=self.config.balanced_replay,
+        )
         # states:      (B, STATE_DIM)
         # actions:     (B,)
         # rewards:     (B,)
@@ -140,15 +169,31 @@ class DoubleDQNAgent:
         current_q = self.online_net(states).gather(1, actions.unsqueeze(1)).squeeze(1)  # (B,)
         assert current_q.shape == td_target.shape == (self.config.batch_size,)
 
-        loss = F.mse_loss(current_q, td_target)
+        # Huber loss ít nhạy với TD-error ngoại lai hơn MSE khi reward/Q-target
+        # thay đổi mạnh trong các trạng thái và độ dài rắn khác nhau.
+        loss = F.smooth_l1_loss(current_q, td_target)
 
         self.optimizer.zero_grad()
         loss.backward()
+        gradient_norm = torch.nn.utils.clip_grad_norm_(
+            self.online_net.parameters(),
+            self.config.gradient_clip_norm,
+        )
         self.optimizer.step()
+        self.total_updates += 1
 
         if self.total_env_steps % self.config.target_update_freq == 0:
             self.target_net.load_state_dict(self.online_net.state_dict())
 
+        td_error = td_target - current_q.detach()
+        self.last_update_metrics = {
+            "loss": float(loss.item()),
+            "mean_abs_td_error": float(td_error.abs().mean().item()),
+            "mean_current_q": float(current_q.detach().mean().item()),
+            "mean_target_q": float(td_target.mean().item()),
+            "max_abs_q": float(current_q.detach().abs().max().item()),
+            "gradient_norm": float(gradient_norm.item()),
+        }
         return float(loss.item())
 
     # ------------------------------------------------------------------ #
@@ -164,6 +209,8 @@ class DoubleDQNAgent:
                 "target_net": self.target_net.state_dict(),
                 "optimizer": self.optimizer.state_dict(),
                 "total_env_steps": self.total_env_steps,
+                "epsilon_steps": self.epsilon_steps,
+                "total_updates": self.total_updates,
                 "config": self.config.__dict__,
             },
             path,
@@ -175,5 +222,7 @@ class DoubleDQNAgent:
         if "optimizer" in checkpoint:
             self.optimizer.load_state_dict(checkpoint["optimizer"])
         self.total_env_steps = checkpoint["total_env_steps"]
+        self.epsilon_steps = checkpoint.get("epsilon_steps", self.total_env_steps)
+        self.total_updates = checkpoint.get("total_updates", 0)
 
 
