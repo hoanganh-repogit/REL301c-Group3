@@ -106,6 +106,24 @@ python scripts/train_final_dqn.py --max-env-steps 10000000
 
 Nhấn `Ctrl+C` sẽ lưu `checkpoint_latest.pt` trước khi dừng.
 
+### Dừng và train tiếp
+
+Dừng an toàn bằng `Ctrl+C` trong terminal. Hãy chờ đến khi xuất hiện thông báo đã lưu checkpoint và terminal trả lại prompt. Checkpoint khi dừng chứa network, optimizer, epsilon, bộ đếm bước và replay buffer.
+
+Tiếp tục đúng run `seed_0` đang dở:
+
+```powershell
+python scripts/train_final_dqn.py --resume
+```
+
+Tiếp tục và bật cửa sổ quan sát nhanh:
+
+```powershell
+python scripts/train_final_dqn.py --resume --render --render-every 100 --render-fps 60 --render-frame-skip 2
+```
+
+Resume nối tiếp `episodes.csv` và `evaluations.csv`, không tạo lại episode 1. Không dùng `--resume` khi muốn train mới hoàn toàn; khi đó cần dùng output directory mới hoặc xoá run cũ có chủ đích.
+
 ## Output final training
 
 ```text

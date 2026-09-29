@@ -59,6 +59,26 @@ def test_replay_buffer_clear():
     assert len(buffer) == 0
 
 
+def test_replay_buffer_state_round_trip():
+    source = ReplayBuffer(capacity=100)
+    for index in range(12):
+        state = np.full(STATE_DIM, index, dtype=np.float32)
+        source.push(
+            state,
+            index % ACTION_SPACE,
+            float(index),
+            state + 1,
+            index % 2 == 0,
+            level="level4",
+        )
+
+    restored = ReplayBuffer(capacity=100)
+    restored.load_state_dict(source.state_dict())
+    assert len(restored) == len(source)
+    assert restored.buffer[-1].level == "level4"
+    np.testing.assert_array_equal(restored.buffer[-1].state, source.buffer[-1].state)
+
+
 def test_balanced_replay_samples_multiple_levels():
     buffer = ReplayBuffer(capacity=100)
     state = np.zeros(STATE_DIM, dtype=np.float32)
@@ -126,3 +146,5 @@ def test_epsilon_schedule_decays_and_resets():
 
     agent.reset_epsilon_schedule()
     assert agent.epsilon() == 1.0  # reset về start -- dùng khi lên level mới (Giai đoạn 3)
+
+

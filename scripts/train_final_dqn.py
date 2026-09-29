@@ -66,6 +66,16 @@ def append_csv(path: Path, row: dict, fields: list[str]) -> None:
         writer.writerow(row)
 
 
+def read_last_csv_row(path: Path) -> dict | None:
+    if not path.exists():
+        return None
+    last = None
+    with path.open("r", newline="", encoding="utf-8") as handle:
+        for last in csv.DictReader(handle):
+            pass
+    return last
+
+
 def set_seed(seed: int) -> None:
     random.seed(seed)
     np.random.seed(seed)
@@ -160,6 +170,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-dir", type=Path, default=ROOT / "results" / "final_dqn")
     parser.add_argument("--seed", type=int)
     parser.add_argument("--max-env-steps", type=int)
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="Continue the existing seed run from checkpoint_latest.pt",
+    )
     parser.add_argument("--render", action="store_true")
     parser.add_argument("--render-every", type=int, default=50)
     parser.add_argument("--render-fps", type=int, default=30)
@@ -203,10 +218,22 @@ def main() -> None:
     mastery_path = output_dir / "mastery_events.csv"
     status_path = output_dir / "run_status.json"
 
-    # Không ghi nối nhầm vào run cũ.
-    for path in (episodes_path, evaluations_path, mastery_path):
-        if path.exists():
-            raise FileExistsError(f"Output already exists: {path}. Use a new --output-dir.")
+    checkpoint_path = output_dir / "checkpoint_latest.pt"
+    if args.resume:
+        if not checkpoint_path.is_file() or not episodes_path.is_file():
+            raise FileNotFoundError(
+                "Resume requires checkpoint_latest.pt and episodes.csv in "
+                f"{output_dir}"
+            )
+        if (output_dir / "final_model.pt").exists():
+            raise RuntimeError("This run is already mastered; final_model.pt exists.")
+    else:
+        # Không ghi nối nhầm vào run cũ.
+        for path in (episodes_path, evaluations_path, mastery_path):
+            if path.exists():
+                raise FileExistsError(
+                    f"Output already exists: {path}. Use --resume or a new --output-dir."
+                )
 
     renderer = None
     if args.render:
@@ -223,12 +250,58 @@ def main() -> None:
     started_at = utc_now()
     completed = False
 
+    if args.resume:
+        replay_restored = agent.load(str(checkpoint_path))
+        last_episode = read_last_csv_row(episodes_path)
+        if last_episode is None:
+            raise RuntimeError("episodes.csv has no data rows; cannot resume safely")
+        episode_index = int(last_episode["episode"])
+        global_env_step = int(last_episode["global_env_step"])
+        if agent.total_env_steps != global_env_step:
+            raise RuntimeError(
+                "Checkpoint and episodes.csv are out of sync: "
+                f"checkpoint steps={agent.total_env_steps}, CSV steps={global_env_step}. "
+                "Resume after a graceful Ctrl+C stop."
+            )
+
+        previous_status = load_yaml(status_path) if status_path.exists() else {}
+        unlocked_count = min(
+            int(previous_status.get("unlocked_levels", 1)), total_levels
+        )
+        mastery_streak = int(previous_status.get("mastery_streak", 0))
+        started_at = str(previous_status.get("started_at_utc", started_at))
+
+        last_evaluation = read_last_csv_row(evaluations_path)
+        if last_evaluation is not None:
+            evaluation_index = int(last_evaluation["evaluation_index"])
+            next_evaluation_step = (
+                int(last_evaluation["global_env_step"])
+                + int(config["evaluation_every_env_steps"])
+            )
+        else:
+            next_evaluation_step = int(config["evaluation_every_env_steps"])
+
+        best_path = output_dir / "best_evaluation.json"
+        if best_path.exists():
+            best_data = load_yaml(best_path)
+            best_score = float(best_data.get("mastery_score", -float("inf")))
+
+        print(
+            f"[RESUME] episode={episode_index:,} steps={global_env_step:,} "
+            f"epsilon={agent.epsilon():.3f} replay={len(agent.buffer):,} "
+            f"({'restored' if replay_restored else 'not present in old checkpoint'})"
+        )
+
     write_json(status_path, {
         "status": "running",
         "seed": seed,
         "started_at_utc": started_at,
         "device": str(agent.device),
+        "episode": episode_index,
+        "global_env_step": global_env_step,
         "unlocked_levels": unlocked_count,
+        "mastery_streak": mastery_streak,
+        "resumed": args.resume,
     })
 
     try:
@@ -396,9 +469,9 @@ def main() -> None:
             )
 
     except KeyboardInterrupt:
-        print("Training interrupted; saving latest checkpoint.")
+        print("Training interrupted; saving resumable checkpoint (this may take a moment).")
     finally:
-        agent.save(str(output_dir / "checkpoint_latest.pt"))
+        agent.save(str(checkpoint_path), include_replay_buffer=True)
         if completed:
             agent.save(str(output_dir / "final_model.pt"))
         if renderer is not None:

@@ -199,12 +199,11 @@ class DoubleDQNAgent:
     # ------------------------------------------------------------------ #
     # Checkpoint
     # ------------------------------------------------------------------ #
-    def save(self, path: str) -> None:
+    def save(self, path: str, include_replay_buffer: bool = False) -> None:
         parent = os.path.dirname(path)
         if parent:
             os.makedirs(parent, exist_ok=True)
-        torch.save(
-            {
+        checkpoint = {
                 "online_net": self.online_net.state_dict(),
                 "target_net": self.target_net.state_dict(),
                 "optimizer": self.optimizer.state_dict(),
@@ -212,10 +211,13 @@ class DoubleDQNAgent:
                 "epsilon_steps": self.epsilon_steps,
                 "total_updates": self.total_updates,
                 "config": self.config.__dict__,
-            },
-            path,
-        )
-    def load(self, path: str) -> None:
+            }
+        if include_replay_buffer:
+            checkpoint["replay_buffer"] = self.buffer.state_dict()
+        torch.save(checkpoint, path)
+
+    def load(self, path: str) -> bool:
+        """Load agent state and return whether a replay buffer was restored."""
         checkpoint = torch.load(path, map_location=self.device)
         self.online_net.load_state_dict(checkpoint["online_net"])
         self.target_net.load_state_dict(checkpoint["target_net"])
@@ -224,5 +226,10 @@ class DoubleDQNAgent:
         self.total_env_steps = checkpoint["total_env_steps"]
         self.epsilon_steps = checkpoint.get("epsilon_steps", self.total_env_steps)
         self.total_updates = checkpoint.get("total_updates", 0)
+        replay_state = checkpoint.get("replay_buffer")
+        if replay_state is not None:
+            self.buffer.load_state_dict(replay_state)
+            return True
+        return False
 
 

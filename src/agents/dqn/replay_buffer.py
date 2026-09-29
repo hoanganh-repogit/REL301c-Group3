@@ -54,6 +54,48 @@ class ReplayBuffer:
         """
         self.buffer.clear()
 
+    def state_dict(self) -> dict:
+        """Serialize transitions compactly for a resumable training checkpoint."""
+        transitions = list(self.buffer)
+        if not transitions:
+            return {"capacity": self.capacity, "size": 0}
+        return {
+            "capacity": self.capacity,
+            "size": len(transitions),
+            "states": torch.from_numpy(np.stack([t.state for t in transitions])).float(),
+            "actions": torch.tensor([t.action for t in transitions], dtype=torch.int64),
+            "rewards": torch.tensor([t.reward for t in transitions], dtype=torch.float32),
+            "next_states": torch.from_numpy(
+                np.stack([t.next_state for t in transitions])
+            ).float(),
+            "dones": torch.tensor([t.done for t in transitions], dtype=torch.bool),
+            "levels": [t.level for t in transitions],
+        }
+
+    def load_state_dict(self, state: dict) -> None:
+        """Restore the newest transitions that fit this buffer's capacity."""
+        self.clear()
+        size = int(state.get("size", 0))
+        if size == 0:
+            return
+
+        states = state["states"].cpu().numpy()
+        actions = state["actions"].cpu().numpy()
+        rewards = state["rewards"].cpu().numpy()
+        next_states = state["next_states"].cpu().numpy()
+        dones = state["dones"].cpu().numpy()
+        levels = state.get("levels", ["default"] * size)
+        start = max(0, size - self.capacity)
+        for index in range(start, size):
+            self.push(
+                states[index].copy(),
+                int(actions[index]),
+                float(rewards[index]),
+                next_states[index].copy(),
+                bool(dones[index]),
+                str(levels[index]),
+            )
+
     def sample(
         self,
         batch_size: int,
