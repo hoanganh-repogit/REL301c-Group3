@@ -1,4 +1,4 @@
-"""Train một Dueling Double DQN để master các level được chọn trong config."""
+"""Train Dueling Double DQN liên tục trên môi trường cố định."""
 from __future__ import annotations
 
 import argparse
@@ -6,7 +6,7 @@ import csv
 import json
 import random
 import sys
-from collections import Counter
+from collections import deque
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -29,16 +29,8 @@ EPISODE_FIELDS = [
     "target_reached", "epsilon", "replay_buffer_size", "total_updates",
     "mean_loss", "mean_abs_td_error", "mean_current_q", "mean_target_q",
     "max_abs_q", "mean_gradient_norm",
+    "rolling_mean_score", "best_episode_score",
 ]
-EVAL_FIELDS = [
-    "evaluation_index", "global_env_step", "level", "target_score",
-    "episodes", "mean_score", "median_score", "std_score", "min_score",
-    "max_score", "p25_score", "p75_score", "p90_score", "success_rate",
-    "mean_steps", "mean_steps_per_food", "wall_rate", "obstacle_rate",
-    "self_rate", "timeout_rate", "target_reached_rate",
-]
-
-
 def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -76,6 +68,16 @@ def read_last_csv_row(path: Path) -> dict | None:
     return last
 
 
+def read_recent_scores(path: Path, window: int) -> deque[float]:
+    scores: deque[float] = deque(maxlen=window)
+    if not path.exists():
+        return scores
+    with path.open("r", newline="", encoding="utf-8") as handle:
+        for row in csv.DictReader(handle):
+            scores.append(float(row["score"]))
+    return scores
+
+
 def set_seed(seed: int) -> None:
     random.seed(seed)
     np.random.seed(seed)
@@ -91,83 +93,18 @@ def load_levels(level_files: list[str]) -> list[EnvConfig]:
     ]
 
 
-def choose_level(
-    unlocked: list[EnvConfig],
-    rng: random.Random,
-    current_probability: float,
-    all_levels_unlocked: bool,
-) -> EnvConfig:
-    if all_levels_unlocked:
-        return rng.choice(unlocked)
-    current = unlocked[-1]
-    if len(unlocked) == 1 or rng.random() < current_probability:
-        return current
-    return rng.choice(unlocked[:-1])
-
-
-def evaluate_level(
-    agent: DoubleDQNAgent,
-    level: EnvConfig,
-    n_episodes: int,
-    seed: int,
-) -> dict:
-    scores, steps, steps_per_food = [], [], []
-    causes: Counter[str] = Counter()
-
-    for episode in range(n_episodes):
-        env = SnakeEnv(level, seed=seed + episode)
-        state = env.reset()
-        done = False
-        info = {"score": 0, "death_cause": None}
-        while not done:
-            state, _, done, info = env.step(agent.act(state, greedy=True))
-        score = int(info["score"])
-        scores.append(score)
-        steps.append(env.steps)
-        steps_per_food.append(env.steps / max(score, 1))
-        causes[str(info.get("death_cause") or "unknown")] += 1
-
-    values = np.asarray(scores, dtype=np.float64)
-    target = int(level.target_score or 0)
-    denominator = float(n_episodes)
-    return {
-        "level": level.name,
-        "target_score": target,
-        "episodes": n_episodes,
-        "mean_score": float(values.mean()),
-        "median_score": float(np.median(values)),
-        "std_score": float(values.std()),
-        "min_score": int(values.min()),
-        "max_score": int(values.max()),
-        "p25_score": float(np.percentile(values, 25)),
-        "p75_score": float(np.percentile(values, 75)),
-        "p90_score": float(np.percentile(values, 90)),
-        "success_rate": float(np.mean(values >= target)),
-        "mean_steps": float(np.mean(steps)),
-        "mean_steps_per_food": float(np.mean(steps_per_food)),
-        "wall_rate": causes["wall"] / denominator,
-        "obstacle_rate": causes["obstacle"] / denominator,
-        "self_rate": causes["self"] / denominator,
-        "timeout_rate": causes["timeout"] / denominator,
-        "target_reached_rate": causes["target_reached"] / denominator,
-        "scores": scores,
-    }
-
-
-def mastery_score(results: list[dict]) -> float:
-    normalized = [min(row["mean_score"] / row["target_score"], 1.0) for row in results]
-    success = [row["success_rate"] for row in results]
-    return 0.5 * float(np.mean(normalized)) + 0.3 * float(np.mean(success)) + 0.2 * min(normalized)
-
-
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Train final multi-level DQN")
+    parser = argparse.ArgumentParser(description="Train continuous Level 4 DQN")
     parser.add_argument(
         "--config",
         type=Path,
         default=ROOT / "configs" / "experiments" / "dqn_final_mastery.yaml",
     )
-    parser.add_argument("--output-dir", type=Path, default=ROOT / "results" / "final_dqn")
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=ROOT / "results" / "level4_continuous_dqn",
+    )
     parser.add_argument("--seed", type=int)
     parser.add_argument("--max-env-steps", type=int)
     parser.add_argument(
@@ -190,6 +127,10 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     config = load_yaml(args.config)
+    best_score_window = int(config.get("best_score_window", 100))
+    best_score_warmup = int(config.get("best_score_warmup_episodes", 500))
+    if best_score_window <= 0:
+        raise ValueError("best_score_window must be greater than zero")
     seed = int(config["seed"] if args.seed is None else args.seed)
     max_env_steps = int(
         config.get("max_env_steps", 0)
@@ -197,14 +138,11 @@ def main() -> None:
         else args.max_env_steps
     )
     set_seed(seed)
-    rng = random.Random(seed)
     level_files = list(config.get("training_levels", DEFAULT_LEVEL_FILES))
-    if not level_files:
-        raise ValueError("training_levels must contain at least one level")
-    if len(level_files) != len(set(level_files)):
-        raise ValueError("training_levels must not contain duplicates")
+    if len(level_files) != 1:
+        raise ValueError("Continuous final trainer requires exactly one training level")
     levels = load_levels(level_files)
-    total_levels = len(levels)
+    level = levels[0]
 
     if args.render_frame_skip <= 0:
         raise ValueError("--render-frame-skip must be greater than zero")
@@ -214,8 +152,6 @@ def main() -> None:
     output_dir = args.output_dir / f"seed_{seed}"
     output_dir.mkdir(parents=True, exist_ok=True)
     episodes_path = output_dir / "episodes.csv"
-    evaluations_path = output_dir / "evaluations.csv"
-    mastery_path = output_dir / "mastery_events.csv"
     status_path = output_dir / "run_status.json"
 
     checkpoint_path = output_dir / "checkpoint_latest.pt"
@@ -225,11 +161,9 @@ def main() -> None:
                 "Resume requires checkpoint_latest.pt and episodes.csv in "
                 f"{output_dir}"
             )
-        if (output_dir / "final_model.pt").exists():
-            raise RuntimeError("This run is already mastered; final_model.pt exists.")
     else:
         # Không ghi nối nhầm vào run cũ.
-        for path in (episodes_path, evaluations_path, mastery_path):
+        for path in (episodes_path,):
             if path.exists():
                 raise FileExistsError(
                     f"Output already exists: {path}. Use --resume or a new --output-dir."
@@ -240,15 +174,12 @@ def main() -> None:
         from src.envs.pygame_renderer import SnakeRenderer
         renderer = SnakeRenderer(fps=args.render_fps)
 
-    unlocked_count = 1
-    mastery_streak = 0
-    evaluation_index = 0
     episode_index = 0
     global_env_step = 0
-    next_evaluation_step = int(config["evaluation_every_env_steps"])
-    best_score = -float("inf")
+    best_rolling_score = -float("inf")
+    best_episode_score = 0
+    recent_scores: deque[float] = deque(maxlen=best_score_window)
     started_at = utc_now()
-    completed = False
 
     if args.resume:
         replay_restored = agent.load(str(checkpoint_path))
@@ -256,40 +187,36 @@ def main() -> None:
         if last_episode is None:
             raise RuntimeError("episodes.csv has no data rows; cannot resume safely")
         episode_index = int(last_episode["episode"])
-        global_env_step = int(last_episode["global_env_step"])
-        if agent.total_env_steps != global_env_step:
+        csv_env_step = int(last_episode["global_env_step"])
+        checkpoint_env_step = int(agent.total_env_steps)
+        if checkpoint_env_step < csv_env_step:
             raise RuntimeError(
-                "Checkpoint and episodes.csv are out of sync: "
-                f"checkpoint steps={agent.total_env_steps}, CSV steps={global_env_step}. "
-                "Resume after a graceful Ctrl+C stop."
+                "Checkpoint is older than episodes.csv: "
+                f"checkpoint steps={checkpoint_env_step}, CSV steps={csv_env_step}. "
+                "Use a matching checkpoint or start a new output directory."
             )
-
-        previous_status = load_yaml(status_path) if status_path.exists() else {}
-        unlocked_count = min(
-            int(previous_status.get("unlocked_levels", 1)), total_levels
+        # Ctrl+C có thể đến giữa episode. Checkpoint giữ network/optimizer/replay
+        # tới action cuối, còn CSV chỉ chứa episode đã hoàn tất. Bỏ trạng thái env
+        # dở và bắt đầu lại episode kế tiếp, nhưng không vứt các transition đã học.
+        partial_episode_steps = checkpoint_env_step - csv_env_step
+        global_env_step = checkpoint_env_step
+        recent_scores = read_recent_scores(episodes_path, best_score_window)
+        best_episode_score = max(
+            int(float(row["score"]))
+            for row in csv.DictReader(episodes_path.open("r", encoding="utf-8"))
         )
-        mastery_streak = int(previous_status.get("mastery_streak", 0))
+        previous_status = load_yaml(status_path) if status_path.exists() else {}
         started_at = str(previous_status.get("started_at_utc", started_at))
-
-        last_evaluation = read_last_csv_row(evaluations_path)
-        if last_evaluation is not None:
-            evaluation_index = int(last_evaluation["evaluation_index"])
-            next_evaluation_step = (
-                int(last_evaluation["global_env_step"])
-                + int(config["evaluation_every_env_steps"])
-            )
-        else:
-            next_evaluation_step = int(config["evaluation_every_env_steps"])
-
-        best_path = output_dir / "best_evaluation.json"
-        if best_path.exists():
-            best_data = load_yaml(best_path)
-            best_score = float(best_data.get("mastery_score", -float("inf")))
+        best_training_path = output_dir / "best_training.json"
+        if best_training_path.exists():
+            best_training = load_yaml(best_training_path)
+            best_rolling_score = float(best_training.get("rolling_mean_score", -float("inf")))
 
         print(
             f"[RESUME] episode={episode_index:,} steps={global_env_step:,} "
             f"epsilon={agent.epsilon():.3f} replay={len(agent.buffer):,} "
-            f"({'restored' if replay_restored else 'not present in old checkpoint'})"
+            f"({'restored' if replay_restored else 'not present in old checkpoint'}) "
+            f"partial_episode_steps={partial_episode_steps:,}"
         )
 
     write_json(status_path, {
@@ -299,21 +226,14 @@ def main() -> None:
         "device": str(agent.device),
         "episode": episode_index,
         "global_env_step": global_env_step,
-        "unlocked_levels": unlocked_count,
-        "mastery_streak": mastery_streak,
+        "level": level.name,
+        "evaluation_enabled": False,
         "resumed": args.resume,
     })
 
     try:
         while max_env_steps <= 0 or global_env_step < max_env_steps:
             episode_index += 1
-            unlocked = levels[:unlocked_count]
-            level = choose_level(
-                unlocked,
-                rng,
-                float(config["current_level_probability"]),
-                unlocked_count == len(levels),
-            )
             env_seed = seed * 1_000_003 + episode_index
             env = SnakeEnv(level, seed=env_seed)
             state = env.reset()
@@ -342,8 +262,8 @@ def main() -> None:
                         "seed": seed,
                         "episode": episode_index,
                         "extra": (
-                            f"epsilon: {agent.epsilon():.3f} | unlocked: {unlocked_count}/{total_levels} | "
-                            f"target: {level.target_score}"
+                            f"epsilon: {agent.epsilon():.3f} | level: {level.name} | "
+                            "target: unlimited"
                         ),
                     })
                     if not visible:
@@ -358,6 +278,10 @@ def main() -> None:
                 if update_metrics else float("nan")
                 for name in metric_names
             }
+            episode_score = int(info["score"])
+            recent_scores.append(float(episode_score))
+            rolling_mean_score = float(np.mean(recent_scores))
+            best_episode_score = max(best_episode_score, episode_score)
             append_csv(episodes_path, {
                 "episode": episode_index,
                 "global_env_step": global_env_step,
@@ -378,10 +302,26 @@ def main() -> None:
                 "mean_target_q": means["mean_target_q"],
                 "max_abs_q": means["max_abs_q"],
                 "mean_gradient_norm": means["gradient_norm"],
+                "rolling_mean_score": rolling_mean_score,
+                "best_episode_score": best_episode_score,
             }, EPISODE_FIELDS)
 
             if episode_index % int(config["save_every_episodes"]) == 0:
                 agent.save(str(output_dir / "checkpoint_latest.pt"))
+                if (
+                    episode_index >= best_score_warmup
+                    and len(recent_scores) == best_score_window
+                    and rolling_mean_score > best_rolling_score
+                ):
+                    best_rolling_score = rolling_mean_score
+                    agent.save(str(output_dir / "checkpoint_best.pt"))
+                    write_json(output_dir / "best_training.json", {
+                        "episode": episode_index,
+                        "global_env_step": global_env_step,
+                        "window": best_score_window,
+                        "rolling_mean_score": best_rolling_score,
+                        "best_episode_score": best_episode_score,
+                    })
                 write_json(status_path, {
                     "status": "running",
                     "seed": seed,
@@ -389,104 +329,44 @@ def main() -> None:
                     "device": str(agent.device),
                     "episode": episode_index,
                     "global_env_step": global_env_step,
-                    "unlocked_levels": unlocked_count,
-                    "mastery_streak": mastery_streak,
+                    "level": level.name,
+                    "evaluation_enabled": False,
+                    "rolling_mean_score": rolling_mean_score,
+                    "best_rolling_mean_score": (
+                        best_rolling_score if best_rolling_score > -float("inf") else None
+                    ),
+                    "best_episode_score": best_episode_score,
                 })
                 print(
                     f"[TRAIN] episode={episode_index:,} steps={global_env_step:,} "
                     f"level={level.name} score={info['score']} "
+                    f"rolling={rolling_mean_score:.2f} best={best_episode_score} "
                     f"epsilon={agent.epsilon():.3f} loss={means['loss']:.5f}"
                 )
-
-            if global_env_step < next_evaluation_step:
-                continue
-
-            evaluation_index += 1
-            eval_seed = 10_000_000 + seed * 100_000 + evaluation_index * 1_000
-            results = []
-            for level_to_evaluate in levels[:unlocked_count]:
-                result = evaluate_level(
-                    agent,
-                    level_to_evaluate,
-                    int(config["evaluation_episodes_per_level"]),
-                    eval_seed,
-                )
-                results.append(result)
-                append_csv(evaluations_path, {
-                    "evaluation_index": evaluation_index,
-                    "global_env_step": global_env_step,
-                    **{key: value for key, value in result.items() if key != "scores"},
-                }, EVAL_FIELDS)
-
-            threshold = float(config["mastery_success_rate"])
-            all_pass = all(row["success_rate"] >= threshold for row in results)
-            mastery_streak = mastery_streak + 1 if all_pass else 0
-            score = mastery_score(results)
-
-            if unlocked_count == len(levels) and score > best_score:
-                best_score = score
-                agent.save(str(output_dir / "checkpoint_best.pt"))
-                write_json(output_dir / "best_evaluation.json", {
-                    "evaluation_index": evaluation_index,
-                    "global_env_step": global_env_step,
-                    "mastery_score": score,
-                    "mastery_streak": mastery_streak,
-                    "levels": results,
-                })
-
-            required = int(config["required_consecutive_mastery_checks"])
-            if mastery_streak >= required:
-                if unlocked_count < len(levels):
-                    mastered = levels[unlocked_count - 1]
-                    unlocked_count += 1
-                    append_csv(mastery_path, {
-                        "global_env_step": global_env_step,
-                        "episode": episode_index,
-                        "mastered_level": mastered.name,
-                        "unlocked_level": levels[unlocked_count - 1].name,
-                        "required_success_rate": threshold,
-                    }, [
-                        "global_env_step", "episode", "mastered_level",
-                        "unlocked_level", "required_success_rate",
-                    ])
-                    mastery_streak = 0
-                    agent.reset_epsilon_schedule(
-                        float(config.get("epsilon_on_level_unlock", agent.config.epsilon_start))
-                    )
-                else:
-                    completed = True
-                    break
-
-            next_evaluation_step = global_env_step + int(config["evaluation_every_env_steps"])
-            print(
-                f"[EVAL {evaluation_index}] steps={global_env_step:,} "
-                f"unlocked={unlocked_count}/{total_levels} streak={mastery_streak}/{required} "
-                + " | ".join(
-                    f"{row['level']}: score={row['mean_score']:.2f}, "
-                    f"success={row['success_rate']:.1%}"
-                    for row in results
-                )
-            )
 
     except KeyboardInterrupt:
         print("Training interrupted; saving resumable checkpoint (this may take a moment).")
     finally:
         agent.save(str(checkpoint_path), include_replay_buffer=True)
-        if completed:
-            agent.save(str(output_dir / "final_model.pt"))
+        # Compact checkpoint để play; checkpoint_latest chứa thêm replay buffer
+        # và được dùng riêng cho --resume.
+        agent.save(str(output_dir / "final_model.pt"))
         if renderer is not None:
             renderer.close()
         write_json(status_path, {
-            "status": "mastered" if completed else "stopped",
+            "status": "stopped",
             "seed": seed,
             "started_at_utc": started_at,
             "completed_at_utc": utc_now(),
             "device": str(agent.device),
             "episode": episode_index,
             "global_env_step": global_env_step,
-            "unlocked_levels": unlocked_count,
-            "mastery_streak": mastery_streak,
-            "best_mastery_score": best_score if best_score > -float("inf") else None,
+            "level": level.name,
+            "evaluation_enabled": False,
+            "best_rolling_mean_score": (
+                best_rolling_score if best_rolling_score > -float("inf") else None
+            ),
+            "best_episode_score": best_episode_score,
         })
 
 

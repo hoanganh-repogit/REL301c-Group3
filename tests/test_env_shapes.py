@@ -1,11 +1,12 @@
 """
-Kiểm tra: state luôn có shape cố định (STATE_DIM,) trên CẢ 5 level,
+Kiểm tra: state luôn có shape cố định (STATE_DIM,) trên CẢ 6 level,
 bất kể kích thước bàn khác nhau. Đây là điều kiện tiên quyết để 1 network
 dùng chung được cho mọi level.
 """
 
 import glob
 import os
+from collections import deque
 
 import numpy as np
 import pytest
@@ -42,10 +43,10 @@ def test_step_state_shape(config_path):
             env.reset()
 
 
-def test_all_five_levels_present():
-    """Đảm bảo đúng 5 file level tồn tại (không bị thiếu/thừa khi tổ chức lại config)."""
+def test_all_six_levels_present():
+    """Đảm bảo đúng 6 file level tồn tại (không bị thiếu/thừa khi tổ chức lại config)."""
     names = {load_env_config(p).name for p in ALL_LEVEL_FILES}
-    expected = {"level1", "level2", "level3", "level4", "level5_holdout"}
+    expected = {"level1", "level2", "level3", "level4", "level5_holdout", "level6"}
     assert names == expected, f"Thiếu/thừa level: {expected.symmetric_difference(names)}"
 
 
@@ -64,7 +65,40 @@ def test_level5_is_marked_holdout():
 
 def test_load_all_levels_returns_all_configs():
     levels = load_all_levels(CONFIG_DIR)
-    assert set(levels) == {"level1", "level2", "level3", "level4", "level5_holdout"}
+    assert set(levels) == {
+        "level1", "level2", "level3", "level4", "level5_holdout", "level6"
+    }
+
+
+@pytest.mark.parametrize("config_path", ALL_LEVEL_FILES)
+def test_all_free_cells_are_connected(config_path):
+    config = load_env_config(config_path)
+    blocked = set(config.obstacles)
+    start = next(
+        (row, col)
+        for row in range(config.height)
+        for col in range(config.width)
+        if (row, col) not in blocked
+    )
+    seen = {start}
+    queue = deque([start])
+    while queue:
+        row, col = queue.popleft()
+        for delta_row, delta_col in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            point = (row + delta_row, col + delta_col)
+            if (
+                0 <= point[0] < config.height
+                and 0 <= point[1] < config.width
+                and point not in blocked
+                and point not in seen
+            ):
+                seen.add(point)
+                queue.append(point)
+
+    free_cells = config.height * config.width - len(blocked)
+    assert len(seen) == free_cells, (
+        f"{config.name}: chỉ kết nối {len(seen)}/{free_cells} ô trống"
+    )
 
 
 def test_timeout_counter_resets_after_eating_food():

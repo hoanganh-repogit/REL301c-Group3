@@ -1,7 +1,7 @@
 """
 Môi trường Snake tham số hoá theo level (EnvConfig): kích thước bàn và
 vật cản đều đọc từ config, không hard-code — để cùng 1 class dùng được
-cho cả 5 level (Giai đoạn 1 của kế hoạch).
+cho mọi level (Giai đoạn 1 của kế hoạch).
 
 Interface theo phong cách Gym cổ điển: reset() -> state, step(action) -> (state, reward, done, info)
 """
@@ -31,10 +31,10 @@ def _apply_relative_turn(direction: str, turn: str) -> str:
 
 # Hệ số reward — CỐ ĐỊNH, dùng chung cho mọi level để so sánh công bằng
 REWARD_FOOD = 10.0
-REWARD_DEATH = -10.0
-REWARD_STEP = -0.01 # phạt nhẹ mỗi bước, khuyến khích agent đi hiệu quả
-REWARD_CLOSER = 0.05
-REWARD_FARTHER = -0.05
+REWARD_DEATH = -20.0
+REWARD_STEP = -0.005 # phạt rất nhẹ, không ép rắn lao vào mồi khi đường nguy hiểm
+REWARD_CLOSER = 0.02
+REWARD_FARTHER = -0.02
 
 """
 Giới hạn số bước tối đa 1 episode (an toàn, tránh vòng lặp vô hạn khi
@@ -114,14 +114,15 @@ class SnakeEnv:
     def _sample_food_position(self) -> tuple[int, int]:
         """Sample vị trí mồi ngẫu nhiên, không trùng thân rắn / vật cản."""
         occupied = self.obstacles | set(self.snake_body)
-        for _ in range(1000):
-            r = self.rng.randint(0, self.height)
-            c = self.rng.randint(0, self.width)
-            if (r, c) not in occupied:
-                return (r, c)
-        raise RuntimeError(
-            f"[{self.config.name}] Không tìm được vị trí mồi hợp lệ — bàn cờ có thể đã đầy."
-        )
+        free_cells = [
+            (row, col)
+            for row in range(self.height)
+            for col in range(self.width)
+            if (row, col) not in occupied
+        ]
+        if not free_cells:
+            raise RuntimeError(f"[{self.config.name}] Không còn ô trống để spawn mồi.")
+        return free_cells[int(self.rng.randint(0, len(free_cells)))]
 
     # ------------------------------------------------------------------ #
     # Step

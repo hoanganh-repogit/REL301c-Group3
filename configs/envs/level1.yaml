@@ -1,6 +1,6 @@
-# Level 1 - Môi trường cho việc cấp độ dễ
+# Level 1 — làm quen: bàn vừa, không vật cản
 name: level1
 target_score: 25
-size: [15, 15] # [height, with]
-obstacles: [] # Không vật cản
-is_holdout: false # dùng cho train không đi test
+size: [15, 15]
+obstacles: []
+is_holdout: false

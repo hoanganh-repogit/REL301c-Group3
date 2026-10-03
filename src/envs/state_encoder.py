@@ -1,9 +1,9 @@
 """
 Chuyển trạng thái "thô" của game (vị trí rắn, hướng đi, vị trí mồi, vật cản)
-thành 1 feature vector CỐ ĐỊNH 19 chiều — không phụ thuộc kích thước bàn.
+thành 1 feature vector CỐ ĐỊNH 27 chiều — không phụ thuộc kích thước bàn.
 
-Đây là điểm mấu chốt để cùng 1 network có thể dùng chung cho cả 5 level
-(15x15 tới 30x30), vì input luôn có shape (19,) bất kể bàn to hay nhỏ.
+Đây là điểm mấu chốt để cùng 1 network có thể dùng chung cho mọi level
+(15x15 tới 30x30), vì input luôn có shape (27,) bất kể bàn to hay nhỏ.
 
 Bố cục vector (thứ tự CỐ ĐỊNH, không được đổi khi đã bắt đầu train):
     index 0-2  : danger [thẳng, phải, trái] tương đối theo hướng đang đi
@@ -13,11 +13,14 @@ Bố cục vector (thứ tự CỐ ĐỊNH, không được đổi khi đã bắ
     index 14-15: delta mồi chuẩn hoá [row, col]
     index 16-17: vị trí đầu chuẩn hoá [row, col]
     index 18   : tỷ lệ chiều dài rắn trên số ô khả dụng
+    index 19-21: tỷ lệ vùng an toàn sau [thẳng, phải, trái]
+    index 22-25: vị trí đuôi tương đối [trái, phải, trên, dưới]
+    index 26   : khoảng cách Manhattan chuẩn hoá từ đầu tới đuôi
 """
 from __future__ import annotations
 import numpy as np
 
-STATE_DIM = 19
+STATE_DIM = 27
 
 # Vector di chuyển tương ứng mỗi hướng: (delta_row, delta_col)
 DIRECTION_VECTOR: dict[str, tuple[int, int]] = {
@@ -47,7 +50,14 @@ def _turn_relative(direction: str, turn: str) -> str:
         return _CLOCKWISE_ODER[(idx - 1) % 4]
     raise ValueError(f"Unknown direction: {direction}")
 
-def _is_collision(point: tuple[int, int], height: int, width: int, obstacles: set[tuple[int, int]], snake_body: list[tuple[int, int]]) -> bool:
+def _is_collision(
+    point: tuple[int, int],
+    height: int,
+    width: int,
+    obstacles: set[tuple[int, int]],
+    snake_body: list[tuple[int, int]],
+    food_pos: tuple[int, int],
+) -> bool:
     """
     True nếu điểm `point` là va chạm: ra ngoài bàn, trúng vật cản, hoặc trúng thân rắn.
 
@@ -63,13 +73,15 @@ def _is_collision(point: tuple[int, int], height: int, width: int, obstacles: se
         return True
     if point in obstacles:
         return True
-    if point in snake_body:
+    # Nếu không ăn mồi, đuôi rời đi trong cùng bước nên ô đuôi hiện tại hợp lệ.
+    body_to_check = snake_body if point == food_pos else snake_body[:-1]
+    if point in body_to_check:
         return True
     return False
 
 def encode_state(snake_body: list[tuple[int, int]], direction: str, food_pos: tuple[int, int], height: int, width: int, obstacles: set[tuple[int, int]]) -> np.ndarray:
     """
-    Encode trạng thái game thô thành vector 11 chiều.
+    Encode trạng thái game thô thành vector 27 chiều.
 
     Args:
         snake_body: list toạ độ (row, col), index 0 LÀ ĐẦU RẮN.
@@ -79,7 +91,7 @@ def encode_state(snake_body: list[tuple[int, int]], direction: str, food_pos: tu
         obstacles: tập toạ độ vật cản tĩnh của level hiện tại.
 
     Returns:
-        np.ndarray shape (STATE_DIM,) = (11,), dtype float32.
+        np.ndarray shape (STATE_DIM,) = (27,), dtype float32.
     """
     assert direction in DIRECTION_VECTOR, f"Unknown direction: {direction}"
     assert len(snake_body) >= 1, f"snake_boy phải có ít nhất 1 ô (đầu rắn)"
@@ -95,9 +107,15 @@ def encode_state(snake_body: list[tuple[int, int]], direction: str, food_pos: tu
         dr, dc = DIRECTION_VECTOR[dir_name]
         return (head[0] + dr, head[1] + dc)
 
-    danger_straight = _is_collision(_point_after(dir_straight), height, width, obstacles, snake_body)
-    danger_right = _is_collision(_point_after(dir_right), height, width, obstacles, snake_body)
-    danger_left = _is_collision(_point_after(dir_left), height, width, obstacles, snake_body)
+    danger_straight = _is_collision(
+        _point_after(dir_straight), height, width, obstacles, snake_body, food_pos
+    )
+    danger_right = _is_collision(
+        _point_after(dir_right), height, width, obstacles, snake_body, food_pos
+    )
+    danger_left = _is_collision(
+        _point_after(dir_left), height, width, obstacles, snake_body, food_pos
+    )
 
     # index 3-6: hướng đang đi, one-hot
     dir_up = direction == "UP"
@@ -141,6 +159,52 @@ def encode_state(snake_body: list[tuple[int, int]], direction: str, food_pos: tu
     available_cells = max(1, height * width - len(obstacles))
     snake_length_ratio = len(snake_body) / float(available_cells)
 
+    # Đo vùng có thể tiếp cận sau từng action. BFS dừng sớm khi vùng đã đủ lớn
+    # so với chiều dài rắn, nên phát hiện ngõ cụt mà không quét cả bàn mỗi bước.
+    def _safe_area_ratio(dir_name: str) -> float:
+        candidate = _point_after(dir_name)
+        if _is_collision(candidate, height, width, obstacles, snake_body, food_pos):
+            return 0.0
+
+        will_grow = candidate == food_pos
+        next_body = [candidate, *snake_body]
+        if not will_grow:
+            next_body.pop()
+        blocked = obstacles | set(next_body[1:])
+        cap = min(available_cells, max(32, len(next_body) * 2))
+        seen = {candidate}
+        queue = [candidate]
+        cursor = 0
+        while cursor < len(queue) and len(seen) < cap:
+            row, col = queue[cursor]
+            cursor += 1
+            for dr, dc in DIRECTION_VECTOR.values():
+                point = (row + dr, col + dc)
+                if (
+                    0 <= point[0] < height
+                    and 0 <= point[1] < width
+                    and point not in blocked
+                    and point not in seen
+                ):
+                    seen.add(point)
+                    queue.append(point)
+                    if len(seen) >= cap:
+                        break
+        return len(seen) / float(cap)
+
+    safe_area_straight = _safe_area_ratio(dir_straight)
+    safe_area_right = _safe_area_ratio(dir_right)
+    safe_area_left = _safe_area_ratio(dir_left)
+
+    tail_row, tail_col = snake_body[-1]
+    tail_left = tail_col < head_col
+    tail_right = tail_col > head_col
+    tail_up = tail_row < head_row
+    tail_down = tail_row > head_row
+    tail_distance = (
+        abs(tail_row - head_row) + abs(tail_col - head_col)
+    ) / float(max(1, height + width - 2))
+
     state = np.array(
         [danger_straight,
          danger_right,
@@ -160,7 +224,15 @@ def encode_state(snake_body: list[tuple[int, int]], direction: str, food_pos: tu
          food_delta_col,
          head_row_norm,
          head_col_norm,
-         snake_length_ratio], dtype=np.float32,
+         snake_length_ratio,
+         safe_area_straight,
+         safe_area_right,
+         safe_area_left,
+         tail_left,
+         tail_right,
+         tail_up,
+         tail_down,
+         tail_distance], dtype=np.float32,
     )
 
     assert state.shape == (STATE_DIM,) , f"State shape sai: {state.shape}, ky vong ({STATE_DIM},)"

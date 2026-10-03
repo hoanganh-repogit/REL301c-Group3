@@ -18,7 +18,7 @@ from src.envs.snake_env import (
     REWARD_STEP,
     SnakeEnv,
 )
-from src.utils.config_loader import load_env_config
+from src.utils.config_loader import EnvConfig, load_env_config
 
 CONFIG_DIR = os.path.join(os.path.dirname(__file__), "..", "configs", "envs")
 
@@ -125,6 +125,18 @@ def test_food_respawn_never_overlaps_updated_snake():
     assert env.food_pos not in env.obstacles
 
 
+def test_food_spawn_works_when_only_one_cell_is_free():
+    env = SnakeEnv(EnvConfig("nearly_full", 5, 5), seed=0)
+    free_cell = (4, 4)
+    env.snake_body = [
+        (row, col)
+        for row in range(5)
+        for col in range(5)
+        if (row, col) != free_cell
+    ]
+    assert env._sample_food_position() == free_cell
+
+
 def test_reaching_level_target_finishes_episode_successfully():
     env = _make_env(seed=8)
     env.snake_body = [(5, 5), (5, 4), (5, 3)]
@@ -138,3 +150,20 @@ def test_reaching_level_target_finishes_episode_successfully():
     assert done is True
     assert info["score"] == env.config.target_score
     assert info["death_cause"] == "target_reached"
+
+
+def test_level4_has_no_score_limit():
+    config = load_env_config(os.path.join(CONFIG_DIR, "level4.yaml"))
+    assert config.target_score is None
+    env = SnakeEnv(config, seed=9)
+    env.reset()
+    env.snake_body = [(10, 10), (10, 9), (10, 8)]
+    env.direction = "RIGHT"
+    env.food_pos = (10, 11)
+    env.score = 999
+
+    _, reward, done, info = env.step(0)
+
+    assert reward == REWARD_FOOD
+    assert done is False
+    assert info["score"] == 1000

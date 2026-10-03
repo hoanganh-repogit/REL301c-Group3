@@ -33,6 +33,7 @@ class DQNConfig:
     buffer_size: int = 10000
     min_buffer_size_before_train: int = 500
     target_update_freq: int = 1000
+    train_frequency: int = 1
     epsilon_start: float = 1.0
     epsilon_end: float = 0.01
     epsilon_decay_steps: int = 20000
@@ -42,6 +43,8 @@ class DQNConfig:
 
 class DoubleDQNAgent:
     def __init__(self, config: DQNConfig, device: torch.device | None = None) -> None:
+        if config.train_frequency <= 0:
+            raise ValueError("train_frequency must be greater than zero")
         self.config = config
         self.device = device or (torch.device("cuda" if torch.cuda.is_available() else "cpu"))
 
@@ -140,7 +143,10 @@ class DoubleDQNAgent:
             loss (float) nếu đã update, None nếu buffer chưa đủ transition.
         """
         min_needed = max(self.config.batch_size, self.config.min_buffer_size_before_train)
-        if len(self.buffer) < min_needed:
+        if (
+            len(self.buffer) < min_needed
+            or self.total_env_steps % self.config.train_frequency != 0
+        ):
             return None
 
         states, actions, rewards, next_states, dones = self.buffer.sample(

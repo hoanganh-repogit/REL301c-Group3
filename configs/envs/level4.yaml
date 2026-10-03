@@ -1,6 +1,7 @@
 # Level 4 — môi trường final duy nhất: bàn rộng, vật cản cân đối và không tạo vùng kín
 name: level4
-target_score: 55
+# Không giới hạn điểm; episode chỉ dừng khi chết, timeout hoặc lấp đầy bàn.
+target_score: null
 size: [30, 30]
 # Sáu cột ngắn đối xứng. Các hành lang giữa và quanh mép luôn thông nhau.
 obstacles:

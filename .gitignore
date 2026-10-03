@@ -5,3 +5,4 @@ pytest-cache-files-*/
 .idea/
 results/
 *.pth
+latex/

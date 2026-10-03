@@ -1,10 +1,22 @@
-# Level 3 — Train — thêm vật cản tĩnh, cùng kích thước bàn với level 2
+# Level 3 — trung bình: nhiều cụm cản, vẫn có hành lang rộng để vòng tránh
 name: level3
-target_score: 45
-size: [20, 20]
-# Toạ độ dạng [row, col], 0-indexed, cố định (không random mỗi lần reset)
+target_score: 50
+size: [24, 24]
 obstacles:
-  - [4, 4]
-  - [4, 10]
-  - [10, 7]
+  - [6, 5]
+  - [6, 6]
+  - [6, 7]
+  - [6, 16]
+  - [6, 17]
+  - [6, 18]
+  - [17, 5]
+  - [17, 6]
+  - [17, 7]
+  - [17, 16]
+  - [17, 17]
+  - [17, 18]
+  - [10, 11]
+  - [11, 11]
+  - [12, 11]
+  - [13, 11]
 is_holdout: false
