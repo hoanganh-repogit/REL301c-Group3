@@ -14,9 +14,16 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\web_demo\run_local.ps1
 thay đổi execution policy đã cấu hình trên máy.
 
 The script creates an isolated `.venv-web-demo`, installs only the web-demo
-dependencies, and starts the server. If Python 3.11 is installed in Conda but
-not via the Windows Python launcher, set `PYTHON` to its executable first.
-For example: `$env:PYTHON = 'C:\\miniconda3\\envs\\myenvs\\python.exe'`.
+dependencies, and starts the server. Python 3.11 must be installed first. To
+install it with WinGet:
+
+```powershell
+winget install --id Python.Python.3.11 -e
+```
+
+Open a new PowerShell window after installation. If Python 3.11 is installed in
+Conda but not via the Windows Python launcher, set `PYTHON` to its executable
+first. For example: `$env:PYTHON = 'C:\\miniconda3\\envs\\myenvs\\python.exe'`.
 Or, from the repository root, run:
 
 ```powershell
