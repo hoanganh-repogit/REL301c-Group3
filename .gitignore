@@ -3,6 +3,7 @@ __pycache__/
 .pytest_cache/
 pytest-cache-files-*/
 .idea/
+.tools/
 results/
 *.pth
 latex/
