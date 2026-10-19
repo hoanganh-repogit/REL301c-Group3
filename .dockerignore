@@ -1,0 +1,13 @@
+.git
+.idea
+.vscode
+.tools
+__pycache__
+*.pyc
+latex
+notebooks
+tests
+results/**
+!results/level4_continuous_dqn/
+!results/level4_continuous_dqn/seed_0/
+!results/level4_continuous_dqn/seed_0/checkpoint_best.pt

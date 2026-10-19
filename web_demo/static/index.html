@@ -1,0 +1,9 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Snake DQN Demo</title><link rel="stylesheet" href="/static/style.css"></head>
+<body><main><section class="panel"><p class="eyebrow">FROZEN POLICY DEMO</p><h1>Snake Dueling Double DQN</h1>
+<p class="lede">Watch the Level 4-trained policy play one deterministic episode. The browser renders a trace returned by the deployed model.</p>
+<div class="controls"><label>Level <select id="level"><option value="level1">Level 1</option><option value="level2">Level 2</option><option value="level3">Level 3</option><option value="level4" selected>Level 4</option><option value="level5">Level 5</option><option value="level6">Level 6</option></select></label>
+<label>Seed <input id="seed" type="number" min="0" value="1234"></label><button id="run">Run episode</button><button id="pause" disabled>Pause</button></div>
+<dl id="summary"><div><dt>Status</dt><dd>Ready</dd></div></dl><p id="message" role="status">Choose a level and run the frozen checkpoint.</p></section>
+<section class="board-wrap"><canvas id="board" width="720" height="720" aria-label="Animated Snake board"></canvas></section></main><script src="/static/app.js"></script></body></html>

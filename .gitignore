@@ -4,6 +4,13 @@ __pycache__/
 pytest-cache-files-*/
 .idea/
 .tools/
-results/
+# Keep experiment artefacts out of Git, except the compact checkpoint used by
+# the web demo. This allows a fresh clone to serve the same frozen policy.
+results/*
+!results/level4_continuous_dqn/
+results/level4_continuous_dqn/*
+!results/level4_continuous_dqn/seed_0/
+results/level4_continuous_dqn/seed_0/*
+!results/level4_continuous_dqn/seed_0/checkpoint_best.pt
 *.pth
 latex/
