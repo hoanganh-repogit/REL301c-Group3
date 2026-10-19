@@ -1,0 +1,48 @@
+{
+  "seed": 4,
+  "train_levels_mean": 19.735,
+  "holdout_mean": 22.02,
+  "generalization_gap": -2.285,
+  "levels": [
+    {
+      "level": "level1",
+      "mean_score": 16.18,
+      "std_score": 6.586926445619382,
+      "n_episodes": 100,
+      "target_score": 25,
+      "success_rate": 0.07
+    },
+    {
+      "level": "level2",
+      "mean_score": 20.34,
+      "std_score": 7.356928707008109,
+      "n_episodes": 100,
+      "target_score": 35,
+      "success_rate": 0.05
+    },
+    {
+      "level": "level3",
+      "mean_score": 19.76,
+      "std_score": 7.024414566353554,
+      "n_episodes": 100,
+      "target_score": 45,
+      "success_rate": 0.0
+    },
+    {
+      "level": "level4",
+      "mean_score": 22.66,
+      "std_score": 8.251327165977605,
+      "n_episodes": 100,
+      "target_score": 55,
+      "success_rate": 0.0
+    },
+    {
+      "level": "level5_holdout",
+      "mean_score": 22.02,
+      "std_score": 8.48643623672505,
+      "n_episodes": 100,
+      "target_score": 100,
+      "success_rate": 0.0
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "episode": 17000,
+  "global_env_step": 11960734,
+  "window": 100,
+  "rolling_mean_score": 52.09,
+  "best_episode_score": 157
+}

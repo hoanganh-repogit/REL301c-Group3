@@ -1,0 +1,13 @@
+{
+  "status": "stopped",
+  "seed": 0,
+  "started_at_utc": "2026-09-30T15:19:29.441566+00:00",
+  "completed_at_utc": "2026-10-02T14:20:02.736895+00:00",
+  "device": "cuda",
+  "episode": 19095,
+  "global_env_step": 14293725,
+  "level": "level4",
+  "evaluation_enabled": false,
+  "best_rolling_mean_score": 52.09,
+  "best_episode_score": 157
+}

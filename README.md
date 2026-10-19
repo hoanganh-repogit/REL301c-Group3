@@ -45,6 +45,18 @@ python -m pytest -q
 
 Với RTX 5070 Ti, cần PyTorch CUDA build hỗ trợ `sm_120` (ví dụ CUDA 13.2), không dùng build CUDA 12.6 cũ.
 
+## Kết quả và model đã lưu
+
+Các kết quả hiện có được lưu cùng repository để có thể lấy đầy đủ khi clone:
+
+- `results/cross_level_evaluation/`: dữ liệu đánh giá cross-level dạng CSV và metadata.
+- `results/final_dqn/`: kết quả run DQN cũ, gồm CSV, metadata và checkpoint.
+- `results/level4_continuous_dqn/`: kết quả train Level 4, gồm CSV, model tốt nhất, model cuối và checkpoint resume.
+- `results/phase4/`: kết quả các thí nghiệm Phase 4, gồm CSV, metadata và checkpoint.
+- `latex/`: source báo cáo, slide trình bày và các PDF/asset đã tạo.
+
+`checkpoint_latest.pt` chứa replay buffer nên lớn; cần file này để resume đúng run đã lưu. Các checkpoint `.pt` hiện đều nhỏ hơn giới hạn 100 MB/file của GitHub và được lưu trực tiếp trong Git, không cần Git LFS. Vì vậy `git clone` sẽ tải cả CSV và model. Cài dependencies theo phần trên để chạy code; web demo có hướng dẫn riêng tại `web_demo/README.md`.
+
 ## Final training strategy
 
 Final trainer sử dụng:
