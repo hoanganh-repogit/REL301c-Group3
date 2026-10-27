@@ -1,7 +1,7 @@
 """
-Đọc file YAML config của môi trường (level) thành dataclass EnvConfig,
-kèm validate cơ bản để phát hiện lỗi config sớm (fail-fast) thay vì
-để lỗi lan xuống tận lúc chạy training.
+Load an environment (level) YAML config into an EnvConfig dataclass, with basic
+validation so that config errors fail fast instead of surfacing during
+training.
 """
 from __future__ import annotations
 
@@ -12,14 +12,14 @@ import yaml
 @dataclass
 class EnvConfig:
     """
-    Cấu hình 1 level của SnakeEnv.
+    Configuration of one SnakeEnv level.
 
     Attributes:
-        name: tên level, dùng để đặt tên file log/checkpoint.
-        height: chiều cao bàn cờ (số hàng).
-        width: chiều rộng bàn cờ (số cột).
-        obstacles: danh sách toạ độ (row, col) của vật cản tĩnh.
-        is_holdout: True nếu đây là level 5 — không được phép dùng để train.
+        name: level name, used to name log and checkpoint files.
+        height: board height (number of rows).
+        width: board width (number of columns).
+        obstacles: (row, col) coordinates of the static obstacles.
+        is_holdout: True for Level 5, which must never be used for training.
     """
     name: str
     height: int
@@ -29,37 +29,37 @@ class EnvConfig:
     target_score: int | None = None
 
     def __post_init__(self) -> None:
-        # Validate cơ bản, fail sớm nếu config sai
+        # Basic validation: fail early on an invalid config
         assert self.height >= 5 and self.width >= 5, (
-            f"[{self.name}] Bàn quá nhỏ ({self.height}x{self.width}), "
-            "cần tối thiểu 5x5 để rắn có chỗ di chuyển."
+            f"[{self.name}] Board too small ({self.height}x{self.width}); "
+            "at least 5x5 is needed for the snake to move."
         )
 
         for (row, col) in self.obstacles:
             assert 0 <= row < self.height and 0 <= col < self.width, (
-                f"[{self.name}] Vật cản {(row, col)} nằm ngoài bàn cờ "
-                f"kích thước ({self.height}, {self.width})."
+                f"[{self.name}] Obstacle {(row, col)} is outside the board "
+                f"of size ({self.height}, {self.width})."
             )
-        # Không cho phép vật cản trùng toạ độ nhau
+        # Obstacles must not share coordinates
         if self.target_score is not None:
             assert self.target_score > 0, f"[{self.name}] target_score must be greater than zero"
 
         assert len(self.obstacles) == len(set(self.obstacles)), (
-            f"[{self.name}] Có toạ độ vật cản bị trùng lặp."
+            f"[{self.name}] Duplicate obstacle coordinates."
         )
 
 
 def load_env_config(yaml_path: str) -> EnvConfig:
     """
-    Đọc 1 file YAML level và trả về EnvConfig đã validate.
+    Load one level YAML file and return a validated EnvConfig.
 
     Args:
-        yaml_path: đường dẫn tới file yaml, ví dụ configs/envs/level1.yaml
+        yaml_path: path to the YAML file, e.g. configs/envs/level1.yaml
 
     Returns:
-        EnvConfig tương ứng.
+        The corresponding EnvConfig.
     """
-    assert os.path.isfile(yaml_path), f"Không tìm thấy file config: {yaml_path}"
+    assert os.path.isfile(yaml_path), f"Config file not found: {yaml_path}"
     with open(yaml_path, "r", encoding="utf-8") as f:
         raw = yaml.safe_load(f)
 
@@ -77,9 +77,9 @@ def load_env_config(yaml_path: str) -> EnvConfig:
 
 def load_all_levels(envs_dir: str) -> dict[str, EnvConfig]:
     """
-    Đọc toàn bộ file *.yaml trong thư mục configs/envs/ thành dict {name: EnvConfig}.
+    Load every *.yaml file in configs/envs/ into a dict {name: EnvConfig}.
 
-    Dùng ở bước sanity check / khi cần liệt kê tất cả level có sẵn.
+    Used for sanity checks and whenever all available levels are needed.
     """
     configs: dict[str, EnvConfig] = {}
     for fname in sorted(os.listdir(envs_dir)):

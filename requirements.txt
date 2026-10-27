@@ -1,6 +1,10 @@
-numpy
-PyYAML
-pytest
-torch
-pygame-ce
-matplotlib
+# Versions verified on Windows 11 with Python 3.11: the test suite passes and the
+# greedy evaluation of checkpoint_best.pt reproduces the published results exactly.
+# PyPI provides a CPU build of torch on Windows; for GPU training install the CUDA
+# build from https://pytorch.org/get-started/locally/ before this file.
+numpy==2.4.6
+PyYAML==6.0.3
+torch==2.14.0
+pygame-ce==2.5.8
+matplotlib==3.11.2
+pytest==9.1.1

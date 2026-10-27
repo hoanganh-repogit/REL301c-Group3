@@ -1,4 +1,4 @@
-"""Train Dueling Double DQN liên tục trên môi trường cố định."""
+"""Train a Dueling Double DQN continuously on one fixed environment."""
 from __future__ import annotations
 
 import argparse
@@ -162,7 +162,7 @@ def main() -> None:
                 f"{output_dir}"
             )
     else:
-        # Không ghi nối nhầm vào run cũ.
+        # Never append to an old run by mistake.
         for path in (episodes_path,):
             if path.exists():
                 raise FileExistsError(
@@ -195,9 +195,10 @@ def main() -> None:
                 f"checkpoint steps={checkpoint_env_step}, CSV steps={csv_env_step}. "
                 "Use a matching checkpoint or start a new output directory."
             )
-        # Ctrl+C có thể đến giữa episode. Checkpoint giữ network/optimizer/replay
-        # tới action cuối, còn CSV chỉ chứa episode đã hoàn tất. Bỏ trạng thái env
-        # dở và bắt đầu lại episode kế tiếp, nhưng không vứt các transition đã học.
+        # Ctrl+C may arrive mid-episode. The checkpoint keeps network, optimizer,
+        # and replay buffer up to the last action, while the CSV holds only completed
+        # episodes. Drop the partial environment state and start the next episode,
+        # but keep the transitions already learned.
         partial_episode_steps = checkpoint_env_step - csv_env_step
         global_env_step = checkpoint_env_step
         recent_scores = read_recent_scores(episodes_path, best_score_window)
@@ -245,7 +246,9 @@ def main() -> None:
             while not done:
                 action = agent.act(state)
                 next_state, reward, done, info = env.step(action)
-                agent.store(state, action, reward, next_state, done, level=level.name)
+                # A timeout only truncates the episode; it is not a true terminal state.
+                terminal = done and not info["truncated"]
+                agent.store(state, action, reward, next_state, terminal, level=level.name)
                 loss = agent.update()
                 if loss is not None and agent.last_update_metrics is not None:
                     update_metrics.append(agent.last_update_metrics.copy())
@@ -348,8 +351,8 @@ def main() -> None:
         print("Training interrupted; saving resumable checkpoint (this may take a moment).")
     finally:
         agent.save(str(checkpoint_path), include_replay_buffer=True)
-        # Compact checkpoint để play; checkpoint_latest chứa thêm replay buffer
-        # và được dùng riêng cho --resume.
+        # Compact checkpoint for playing; checkpoint_latest also holds the replay
+        # buffer and is used only for --resume.
         agent.save(str(output_dir / "final_model.pt"))
         if renderer is not None:
             renderer.close()

@@ -85,4 +85,4 @@ Bảng chi tiết best checkpoint để trả lời câu hỏi về mean, SD, me
 
 ## 21. Backup / anticipated questions
 
-Các câu trả lời cần giữ nhất quán: unseen là so với run được báo cáo; random baseline chưa đủ chứng minh ưu việt so với heuristic; không có PPO trong phạm vi nghiên cứu chính. Cần nhiều seed để kết luận độ ổn định của thuật toán. Điểm greedy cao hơn training có thể liên quan bỏ exploration, nhưng chưa có thí nghiệm tách riêng để khẳng định toàn bộ chênh lệch do exploration.
+Các câu trả lời cần giữ nhất quán: unseen là so với run được báo cáo; random baseline chưa đủ chứng minh ưu việt so với heuristic; không có PPO trong phạm vi nghiên cứu chính. Cần nhiều seed để kết luận độ ổn định của thuật toán. Điểm greedy cao hơn training vì lúc train vẫn còn 1% action ngẫu nhiên. Đã kiểm chứng: chạy lại Level 4 cùng 100 seed với epsilon 0,01 thì mean giảm từ 144,49 xuống 43,58, khớp rolling mean lúc train (44–52).

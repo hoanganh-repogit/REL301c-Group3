@@ -1,4 +1,4 @@
-# Level 1 — làm quen: bàn vừa, không vật cản
+# Level 1 — warm-up: medium board, no obstacles
 name: level1
 target_score: 25
 size: [15, 15]

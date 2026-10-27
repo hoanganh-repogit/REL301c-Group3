@@ -1,12 +1,12 @@
 """
 
-Kiểm tra dấu reward đúng theo thiết kế:
-  - Ăn mồi        -> reward > 0
-  - Va chạm chết  -> reward < 0
-  - Bước bình thường -> reward <= 0 (phạt nhẹ, khuyến khích hiệu quả)
+Check that reward signs match the design:
+  - Eating food      -> reward > 0
+  - Fatal collision  -> reward < 0
+  - Normal step      -> reward <= 0 (small penalty that rewards efficiency)
 
-Dùng cách "ép" tình huống thay vì chờ random policy tự nhiên gặp phải,
-để test chạy nhanh và ổn định (không phụ thuộc may rủi của rng).
+Each test forces the situation instead of waiting for a random policy to reach
+it, so the tests are fast and deterministic (independent of RNG luck).
 """
 
 import os
@@ -31,10 +31,10 @@ def _make_env(seed=0):
 
 
 def test_reward_constants_sign():
-    """Sanity check trên chính các hằng số reward, độc lập với logic step()."""
-    assert REWARD_FOOD > 0, "Reward khi ăn mồi phải dương"
-    assert REWARD_DEATH < 0, "Reward khi chết phải âm"
-    assert REWARD_STEP <= 0, "Reward mỗi bước bình thường không được dương"
+    """Sanity check on the reward constants themselves, independent of step()."""
+    assert REWARD_FOOD > 0, "The food reward must be positive"
+    assert REWARD_DEATH < 0, "The death reward must be negative"
+    assert REWARD_STEP <= 0, "The normal step reward must not be positive"
 
 
 def test_eating_food_gives_positive_reward():
@@ -43,7 +43,7 @@ def test_eating_food_gives_positive_reward():
     env.direction = "RIGHT"
     env.food_pos = (5, 6)
 
-    # action=0 là STRAIGHT; rắn đang hướng RIGHT nên đi thẳng vào mồi
+    # action=0 is STRAIGHT; the snake heads RIGHT, so it moves straight onto the food
     _, reward, done, info = env.step(0)
 
     assert reward == REWARD_FOOD
@@ -53,12 +53,12 @@ def test_eating_food_gives_positive_reward():
 
 def test_hitting_wall_gives_negative_reward():
     env = _make_env(seed=2)
-    # Đưa đầu rắn ra sát biên phải, hướng RIGHT -> bước tiếp theo chắc chắn đâm tường
+    # Put the head at the right edge heading RIGHT -> the next step must hit the wall
     env.snake_body = [(5, env.width - 1), (5, env.width - 2), (5, env.width - 3)]
     env.direction = "RIGHT"
-    env.food_pos = (0, 0)  # đặt xa để chắc chắn không vô tình ăn trúng
+    env.food_pos = (0, 0)  # far away so it cannot be eaten by accident
 
-    _, reward, done, info = env.step(0)  # STRAIGHT -> ra ngoài bàn
+    _, reward, done, info = env.step(0)  # STRAIGHT -> off the board
 
     assert reward == REWARD_DEATH
     assert done is True
@@ -67,15 +67,15 @@ def test_hitting_wall_gives_negative_reward():
 
 def test_hitting_self_gives_negative_reward():
     env = _make_env(seed=4)
-    # Đầu rắn tại (5,5), hướng UP; (4,5) là 1 đoạn thân GIỮA (không phải đuôi) —
-    # cố ý tránh nhắm vào ô đuôi, vì va vào đuôi khi không ăn mồi là HỢP LỆ
-    # (đuôi sẽ dịch chuyển đi trong cùng bước đó, xem comment trong step()).
-    # Thứ tự thân: đầu(5,5) - (5,4) - (4,4) - (4,5)[giữa] - (4,6) - đuôi(5,6)
+    # Head at (5,5) heading UP; (4,5) is a MIDDLE body cell (not the tail).
+    # Deliberately avoid the tail cell: entering the tail without eating is LEGAL
+    # (the tail moves away in the same step; see the comment in step()).
+    # Body order: head(5,5) - (5,4) - (4,4) - (4,5)[middle] - (4,6) - tail(5,6)
     env.snake_body = [(5, 5), (5, 4), (4, 4), (4, 5), (4, 6), (5, 6)]
     env.direction = "UP"
     env.food_pos = (0, 0)
 
-    _, reward, done, info = env.step(0)  # action UP: đầu -> (4,5), trùng đoạn thân giữa
+    _, reward, done, info = env.step(0)  # action UP: head -> (4,5), a middle body cell
 
     assert reward == REWARD_DEATH
     assert done is True
@@ -83,14 +83,14 @@ def test_hitting_self_gives_negative_reward():
 
 
 def test_moving_into_own_tail_is_legal_when_not_eating():
-    """Đối chứng cho test trên: va vào Ô ĐUÔI (không phải đoạn giữa) khi KHÔNG ăn mồi
-    phải là hợp lệ, vì đuôi dịch chuyển đi trong cùng bước đó."""
+    """Counterpart of the test above: entering the TAIL cell (not a middle cell)
+    WITHOUT eating must be legal, because the tail moves away in the same step."""
     env = _make_env(seed=5)
-    env.snake_body = [(5, 5), (5, 4), (4, 4), (4, 5)]  # đuôi hiện tại = (4,5)
+    env.snake_body = [(5, 5), (5, 4), (4, 4), (4, 5)]  # current tail = (4,5)
     env.direction = "UP"
-    env.food_pos = (0, 0)  # đặt xa, chắc chắn không ăn mồi
+    env.food_pos = (0, 0)  # far away, so no food is eaten
 
-    _, reward, done, info = env.step(0)  # action UP: đầu -> (4,5) = đúng ô đuôi cũ
+    _, reward, done, info = env.step(0)  # action UP: head -> (4,5) = the old tail cell
 
     assert done is False
     assert reward != REWARD_DEATH
@@ -98,7 +98,7 @@ def test_moving_into_own_tail_is_legal_when_not_eating():
 
 
 def test_normal_step_moves_one_cell_and_does_not_eat():
-    """Hồi quy cho lỗi gán nhầm ``new_head = food_pos`` trong step()."""
+    """Regression test for the mistaken ``new_head = food_pos`` assignment in step()."""
     env = _make_env(seed=6)
     env.snake_body = [(5, 5), (5, 4), (5, 3)]
     env.direction = "RIGHT"
@@ -167,3 +167,30 @@ def test_level4_has_no_score_limit():
     assert reward == REWARD_FOOD
     assert done is False
     assert info["score"] == 1000
+
+
+def test_no_food_timeout_is_truncation_not_death():
+    env = _make_env(seed=10)
+    env.snake_body = [(5, 5), (5, 4), (5, 3)]
+    env.direction = "RIGHT"
+    env.food_pos = (12, 12)
+    env.steps_since_food = env.max_steps_without_food - 1
+
+    _, _, done, info = env.step(0)
+
+    assert done is True
+    assert info["death_cause"] == "timeout"
+    assert info["truncated"] is True
+
+
+def test_collision_is_terminal_not_truncation():
+    env = _make_env(seed=11)
+    env.snake_body = [(5, 14), (5, 13), (5, 12)]
+    env.direction = "RIGHT"
+    env.food_pos = (12, 12)
+
+    _, _, done, info = env.step(0)
+
+    assert done is True
+    assert info["death_cause"] == "wall"
+    assert info["truncated"] is False

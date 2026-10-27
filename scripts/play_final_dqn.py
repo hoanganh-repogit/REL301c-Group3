@@ -1,4 +1,4 @@
-"""Chạy model DQN trên một level, tất cả level hoặc chế độ progression."""
+"""Play the DQN model on one level, on all levels, or in progression mode."""
 from __future__ import annotations
 
 import argparse
@@ -36,8 +36,9 @@ def parse_args() -> argparse.Namespace:
         "--checkpoint",
         type=Path,
         default=(
-            ROOT / "results" / "level4_continuous_dqn" / "seed_0" / "final_model.pt"
+            ROOT / "results" / "level4_continuous_dqn" / "seed_0" / "checkpoint_best.pt"
         ),
+        help="Defaults to checkpoint_best.pt, the model used by the report and web demo",
     )
     parser.add_argument(
         "--level",
@@ -106,13 +107,13 @@ def main() -> None:
                     f"steps={env.steps} outcome={info['death_cause']}"
                 )
                 if progression and info.get("death_cause") != "target_reached":
-                    print(f"[RETRY] {level.name} chưa đạt target {level.target_score}.")
+                    print(f"[RETRY] {level.name} did not reach target {level.target_score}.")
                     continue
                 completed_episodes += 1
             if progression:
-                print(f"[LEVEL UP] Hoàn thành {level.name} -> level tiếp theo.")
+                print(f"[LEVEL UP] Completed {level.name} -> next level.")
         if args.level == "progression":
-            print("[GAME COMPLETE] Đã hoàn thành Level 1, 2, 3, 5 và 6.")
+            print("[GAME COMPLETE] Completed Levels 1, 2, 3, 5, and 6.")
     finally:
         renderer.close()
 

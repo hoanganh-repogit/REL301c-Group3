@@ -1,47 +1,35 @@
-\documentclass[10pt,a4paper,twocolumn]{article}
+\documentclass[journal]{IEEEtran}
 
 % -----------------------------------------------------------------------------
 % Packages
 % -----------------------------------------------------------------------------
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
-\usepackage{lmodern}
 \usepackage{microtype}
-\usepackage{geometry}
 \usepackage{amsmath,amssymb}
 \usepackage{booktabs}
-\usepackage{multirow}
 \usepackage{graphicx}
-\usepackage{xcolor}
-\usepackage{enumitem}
-\usepackage{hyperref}
-\usepackage{cleveref}
+\usepackage{url}
+\usepackage[hidelinks]{hyperref}
+\usepackage[capitalise]{cleveref}
+\crefname{figure}{Fig.}{Figs.}
+\Crefname{figure}{Fig.}{Figs.}
 
-\geometry{top=2.0cm,bottom=2.0cm,left=1.8cm,right=1.8cm}
-\setlength{\columnsep}{0.7cm}
-\hypersetup{
-  colorlinks=true,
-  linkcolor=blue!55!black,
-  citecolor=green!45!black,
-  urlcolor=blue!65!black
-}
-
-% Keep unfinished claims visible while drafting. Replace every \pending{...}
-% before submission.
-\newcommand{\pending}[1]{\textcolor{red!70!black}{\textbf{[TODO: #1]}}}
 \newcommand{\methodname}{Dueling Double DQN}
+% Generated table rows are read with the primitive input: the robust \input of
+% current LaTeX kernels breaks booktabs rules that follow it inside a tabular.
+\makeatletter
+\newcommand{\tablerows}[1]{\@@input #1 }
+\makeatother
 
 % -----------------------------------------------------------------------------
 % Paper metadata
 % -----------------------------------------------------------------------------
-\title{Evaluating Cross-Level Generalization of a Dueling Double DQN\\
+\title{Evaluating Cross-Level Generalization of a Dueling Double DQN
 Trained in a Single Snake Environment}
-\author{
-  \pending{Author name}\\
-  \pending{Department and university}\\
-  \texttt{\pending{email address}}
-}
-\date{October 2026}
+\author{Nguyen~Duc~Manh and Hoang~Van~Anh%
+\thanks{N. D. Manh and H. V. Anh are with FPT University (e-mail:
+manhndse180326@fpt.edu.vn; anhhvse180142@fpt.edu.vn).}}
 
 \begin{document}
 \maketitle
@@ -63,21 +51,25 @@ target success rates, normalized scores, episode lengths, and termination
 causes. Across 100 episodes per level, the selected checkpoint obtained an
 in-domain mean score of $144.49\pm27.28$ on Level~4 and target success rates of
 100\%, 97\%, 93\%, 74\%, and 54\% on Levels~1, 2, 3, 5, and 6, respectively;
-the random baseline reached no target. For the evaluated policy, these results
+the random baseline reached no target. Most failures on unseen levels were
+early no-food timeouts while the snake was still short; episodes that reached
+ten food items finished in 318 of 325 cases. For the evaluated policy, these results
 show substantial zero-shot transfer, while the decline and high variance on the
 two largest unseen levels show that cross-level generalization remains
 incomplete. The study provides an empirical case study of both the opportunities
 and limits of single-environment training in a parameterized Snake domain.
 \end{abstract}
 
-\noindent\textbf{Keywords:} reinforcement learning; Deep Q-Network; Double DQN;
-Dueling DQN; generalization; zero-shot transfer; Snake
+\begin{IEEEkeywords}
+Reinforcement learning, Deep Q-Network, Double DQN, Dueling DQN,
+generalization, zero-shot transfer, Snake.
+\end{IEEEkeywords}
 
 % =============================================================================
 \section{Introduction}
 \label{sec:introduction}
 
-Deep reinforcement learning (DRL) has produced agents that learn effective
+\IEEEPARstart{D}{eep} reinforcement learning (DRL) has produced agents that learn effective
 control policies directly from interaction data. Deep Q-Networks (DQN), for
 example, combine Q-learning \cite{watkins1992qlearning} with neural function
 approximation, experience replay, and a target network
@@ -109,7 +101,7 @@ space allow the same network to operate on every board.
 
 The study addresses the following research questions:
 
-\begin{description}[leftmargin=1.1cm,style=nextline]
+\begin{description}
   \item[RQ1] How well does a \methodname{} agent trained only on Level~4 perform
   on that same environment under greedy evaluation?
   \item[RQ2] To what extent does the frozen policy transfer, without
@@ -120,7 +112,7 @@ The study addresses the following research questions:
 
 This work makes the following contributions:
 
-\begin{itemize}[leftmargin=*]
+\begin{itemize}
   \item a parameterized Snake environment covering six board and obstacle
   configurations;
   \item a \methodname{} agent with a 27-feature, size-independent state encoding
@@ -165,8 +157,11 @@ test sets for RL and showed that agents can overfit even when trained on many
 environment instances \cite{cobbe2019quantifying}. Procgen extended this line of
 work with 16 procedurally generated environments and demonstrated the importance
 of environment diversity for both training and evaluation
-\cite{cobbe2020leveraging}. These studies motivate our strict separation of the
-single source level from unseen evaluation levels.
+\cite{cobbe2020leveraging}. Kirk et al. survey zero-shot generalization in deep
+RL and frame it with contextual Markov decision processes, in which training and
+test environment instances differ \cite{kirk2023survey}. Our six levels form a
+small, hand-designed instance of this setting. These studies motivate our strict
+separation of the single source level from unseen evaluation levels.
 
 Reliable generalization claims also require careful aggregation. Deep RL results
 can vary substantially with random seeds, implementation details, and evaluation
@@ -219,7 +214,13 @@ with a finite target, when it reaches that target.
 
 The no-food timeout is twice the number of cells on the board. The counter is
 reset whenever food is consumed. This termination rule prevents non-progressing
-cycles without imposing a fixed total episode length.
+cycles without imposing a fixed total episode length. A timeout is a truncation
+rather than a true terminal state. Following Pardo et al.
+\cite{pardo2018time}, the released trainer stores timeout transitions as
+non-terminal and keeps bootstrapping from the next state. In the
+reported training run, no episode ended by timeout: all 19,094 completed
+episodes ended in self, obstacle, or wall collision. This distinction therefore
+did not affect the trained model.
 
 \begin{table*}[t]
   \centering
@@ -239,8 +240,17 @@ cycles without imposing a fixed total episode length.
   \end{tabular}
 \end{table*}
 
-Only Level~4 contributes transitions to the replay buffer during the continuous
-training run. Consequently, Levels~1, 2, 3, 5, and 6 are all unseen by the
+\begin{figure*}[t]
+  \centering
+  \includegraphics[width=0.82\textwidth]{generated/level_layouts.pdf}
+  \caption{Obstacle layouts of the six levels, drawn from the configuration
+  files. Each panel is scaled to the same display size; the grid shows the true
+  board dimensions. Level~4 (outlined) is the only training environment.}
+  \label{fig:level-layouts}
+\end{figure*}
+
+\Cref{fig:level-layouts} shows the layouts. Only Level~4 contributes
+transitions to the replay buffer during the continuous training run. Consequently, Levels~1, 2, 3, 5, and 6 are all unseen by the
 reported checkpoint, even though some configuration files retain metadata from
 earlier versions of the project.
 
@@ -252,14 +262,17 @@ The reward at time $t$ is
   \begin{cases}
     +10, & \text{if food is consumed},\\
     -20, & \text{if a fatal collision occurs},\\
-    -0.005 + 0.02, & \text{if the move reduces Manhattan distance to food},\\
-    -0.005 - 0.02, & \text{otherwise}.
+    -0.005 + 0.02, & \text{if the head moves closer to food},\\
+    -0.005 - 0.02, & \text{otherwise},
   \end{cases}
   \label{eq:reward}
 \end{equation}
-The small distance-based shaping term encourages progress toward food, while
-the food and collision rewards remain the dominant signals. The same reward
-function is used in every level during evaluation.
+where ``closer'' means that the move reduces the Manhattan distance between
+the head and the food. The small distance-based shaping term encourages
+progress toward food, while
+the food and collision rewards remain the dominant signals. Rewards are used
+only for learning. Evaluation reports the game score, i.e., the number of food
+items eaten, so the shaping terms do not enter any reported metric.
 
 \subsection{Action Space}
 
@@ -408,12 +421,24 @@ and normalized score
 Level~4 has no target, so no post-hoc success threshold is introduced for that
 level. Its in-domain performance is summarized by the full score and survival
 distributions. Success rates are accompanied by two-sided 95\% Wilson score
-intervals. These intervals quantify finite-sample uncertainty over evaluation
+intervals \cite{wilson1927probable}. These intervals quantify finite-sample uncertainty over evaluation
 episodes and do not represent variability across independently trained agents.
 
 Raw scores are not directly compared across all levels because board size,
 target, and episode termination differ. We therefore avoid collapsing the study
 into one generalization-gap value.
+
+\subsection{Exploration Sensitivity}
+
+A supplementary experiment re-evaluates the selected checkpoint with
+$\epsilon=0.01$, the final exploration rate of the training behavior policy.
+It uses the same 100 episode seeds on Levels~4, 5, and 6 and a separate,
+fixed random-number generator for the exploratory actions. On Level~4, it tests
+whether residual exploration explains the gap between training and evaluation
+scores. On Levels~5 and 6, it tests whether occasional random actions change
+the early timeouts reported in \cref{sec:results}. The results, configuration,
+and checkpoint hash are stored in \path{results/epsilon_effect/} and were
+produced by \path{python scripts/evaluate_epsilon_effect.py}.
 
 \subsection{Reproducibility and Analysis}
 
@@ -441,13 +466,20 @@ single mean score \cite{henderson2018deep,agarwal2021deep}.
 \end{figure}
 
 Training ran for 14,293,725 environment steps and logged 19,094 completed
-episodes. Progress was initially slow: the
-mean score was 0.03 over episodes 1--1,000 and 1.90 over episodes 5,001--6,000.
-It increased to 43.08 over episodes 10,001--11,000 and remained above 44 over
-the final several thousand episodes. The selected checkpoint reached the
-maximum 100-episode moving average of 52.09 at episode 17,000. The corresponding
-curve in \cref{fig:training-curve} also shows substantial episode-level
-variation and a decline to a moving average of 46.04 by episode 19,000.
+episodes (\cref{fig:training-curve}). Progress was initially slow: the mean
+score was 0.03 over episodes 1--1,000 and 1.90 over episodes 5,001--6,000. The
+rise coincided with the end of the exploration schedule. The exploration rate
+$\epsilon$ reached its final value of 0.01 at episode 6,646 (400,901 steps),
+and the mean score over episodes 7,001--8,000 was 43.5. After about 1.9 million
+steps, the training score plateaued: every later block of 1,000 episodes had a
+mean between 43.1 and 47.2. More than 85\% of the environment steps therefore
+produced no further gain in this training metric.
+
+The highest 100-episode moving average, 55.97, occurred at episode 12,326,
+between two save points. Because the trainer compares candidates only at
+250-episode save points, the selected checkpoint is the save-point maximum of
+52.09 at episode 17,000. The moving average then declined to 46.04 by episode
+19,000. The curve also shows substantial episode-level variation throughout.
 
 \subsection{Cross-Level Performance}
 
@@ -460,7 +492,7 @@ variation and a decline to a moving average of 46.04 by episode 19,000.
     \toprule
     Level & Mean $\pm$ SD & Median & P25 & P75 & Success (\%) & 95\% CI & Norm. score \\
     \midrule
-\input{generated/main_results_rows.tex}
+\tablerows{generated/main_results_rows.tex}
     \bottomrule
   \end{tabular}
 \end{table*}
@@ -516,10 +548,37 @@ The best and final checkpoints were evaluated under identical seeds. The final
 checkpoint improved mean score on Level~4 from 144.49 to 153.83 and on Level~6
 from 88.71 to 90.56. It also increased Level~2 success from 97\% to 99\%.
 However, it reduced success from 93\% to 83\% on Level~3 and from 74\% to 65\%
-on Level~5; Level~6 success changed from 54\% to 52\%. Thus, later training
-improved in-domain score but did not consistently improve unseen-level transfer.
-For the two evaluated checkpoints, the central conclusion---substantial but
-incomplete cross-level generalization---is unchanged by checkpoint choice.
+on Level~5; Level~6 success changed from 54\% to 52\%.
+
+\begin{table}[t]
+  \centering
+  \caption{Paired success comparison of the best and final checkpoints on the
+  same 100 seeds per level. ``Best only'' counts seeds that only the best
+  checkpoint solved. $p$ is the exact two-sided McNemar test; $p_\mathrm{Holm}$
+  is adjusted over the five levels.}
+  \label{tab:checkpoint-test}
+  \begin{tabular}{lrrrrrr}
+    \toprule
+    Level & Best & Final & Best only & Final only & $p$ & $p_\mathrm{Holm}$ \\
+    \midrule
+\tablerows{generated/checkpoint_test_rows.tex}
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+Because both checkpoints were evaluated on identical seeds, their success
+outcomes form matched pairs. \Cref{tab:checkpoint-test} therefore applies an
+exact two-sided McNemar test to the discordant seeds \cite{mcnemar1947note} and
+controls the family-wise error over the five target levels with the Holm
+procedure \cite{holm1979simple}. Only the Level~3 drop was nominally
+significant ($p=0.041$; 15 seeds solved only by the best checkpoint versus 5
+solved only by the final one), and no difference remained significant after
+the Holm adjustment ($p_\mathrm{Holm}\ge0.207$). Later training improved the
+in-domain score but did not consistently improve unseen-level transfer. With
+100 seeds per level, the observed transfer differences between the two
+checkpoints are not statistically reliable. For both checkpoints, the central
+conclusion---substantial but incomplete cross-level generalization---is
+unchanged.
 
 \begin{figure}[t]
   \centering
@@ -546,6 +605,56 @@ collision (5\%), and timeout (1\%). Level~5 failures were mostly timeouts
 obstacle, and 3\% ended in self-collision. The learned policy had no wall
 collisions outside Level~4.
 
+\begin{table}[t]
+  \centering
+  \caption{Greedy failures of the selected checkpoint on the levels with a
+  target. Median, max, and the last column refer to the score at the moment of
+  timeout.}
+  \label{tab:timeouts}
+  \begin{tabular}{lrrrrr}
+    \toprule
+    Level & Failures & Timeouts & Median & Max & Score $\le2$ \\
+    \midrule
+\tablerows{generated/timeout_rows.tex}
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\Cref{tab:timeouts} shows when these timeouts occurred. Every timeout on
+Levels~2, 3, 5, and 6 happened at a score of at most 9, and the median score at
+timeout was 1 on every level. On Level~6, 34 of the 40 timeouts occurred after
+two or fewer food items. The dominant failure on unseen levels is therefore an
+early stall of a short snake, not a late collapse of a long one. Conversely,
+episodes that reached a score of 10 almost always finished: 318 of 325 such
+episodes on Levels~2, 3, 5, and 6 reached the target. The seven exceptions were
+late collisions at scores between 84 and 146.
+
+\subsection{Sensitivity to Residual Exploration}
+
+\begin{table}[t]
+  \centering
+  \caption{Selected checkpoint under greedy control ($\epsilon=0$) and with
+  $\epsilon=0.01$ on the same 100 seeds. Success, timeout, and collision
+  (wall, obstacle, or self) are percentages of episodes.}
+  \label{tab:epsilon}
+  \setlength{\tabcolsep}{3.5pt}
+  \begin{tabular}{lrrrrrr}
+    \toprule
+    Level & $\epsilon$ & Mean $\pm$ SD & Median & Success & Timeout & Collision \\
+    \midrule
+\tablerows{generated/epsilon_rows.tex}
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+The greedy rows of \cref{tab:epsilon} reproduce \cref{tab:main-results}
+exactly. With $\epsilon=0.01$, the Level~4 mean fell from 144.49 to 43.58
+(median 41), close to the 1,000-episode training means of 43.1--47.2 reported
+above. On Levels~5 and 6, the same small amount of randomness nearly eliminated
+timeouts, from 25\% to 0\% and from 40\% to 1\%. However, collisions rose to
+96\% and 99\% of episodes, and success fell from 74\% to 4\% and from 54\% to
+0\%.
+
 % =============================================================================
 \section{Discussion}
 \label{sec:discussion}
@@ -557,9 +666,13 @@ independent greedy evaluation, with a mean score of 144.49, a median of 154,
 and a standard deviation of 27.28. The interquartile range was 130.25--162.25,
 although the minimum of 1 shows that occasional catastrophic episodes remained.
 The final checkpoint raised the mean to 153.83 but also had a larger standard
-deviation of 31.53. These evaluation scores are substantially higher than the
-training moving average because greedy evaluation removes the remaining
-$\epsilon$-greedy exploration used by the behavior policy.
+deviation of 31.53. These evaluation scores are about three times the training
+moving average. The exploration experiment in \cref{tab:epsilon} explains the
+gap: adding the behavior policy's final $\epsilon=0.01$ back to the frozen
+network lowers its Level~4 mean to the level observed during training. A single
+random action is often fatal for a long snake on a board with obstacles. The
+training curve therefore understates the greedy policy and should not be read
+as its test performance.
 
 \subsection{RQ2: Zero-Shot Cross-Level Transfer}
 
@@ -584,13 +697,28 @@ distributions rather than board size alone.
 \subsection{RQ3: Effects of Environment Geometry}
 
 Performance generally became less reliable as the test environments grew and
-their targets increased. The absence of collision failures on Levels~2 and 3,
-combined with their 3\% and 7\% timeout rates, suggests that the agent usually
-navigated safely but occasionally failed to make progress. This pattern was
-stronger on Levels~5 and 6, where timeout accounted for 25\% and 40\% of all
-episodes. The 54\% Level~6 success rate and its 1--150 interquartile range show
-that small differences in initial state or food sequence can lead to sharply
-different trajectories.
+their targets increased. The failure analysis in \cref{tab:timeouts} locates
+this weakness precisely. On every unseen level with a target, failures were
+dominated by no-food timeouts, and those timeouts occurred almost exclusively
+at the start of an episode, with a median score of 1. Once the snake had eaten
+ten items, the policy reached the target in 318 of 325 episodes. The 1--150
+interquartile range on Level~6 is a direct consequence: an episode either
+stalls almost immediately or runs to completion. The limiting factor for
+transfer is therefore not collision avoidance with a long body but the
+policy's behavior while the snake is still short.
+
+The exploration experiment adds evidence about these stalls. Between two food
+items, both the greedy policy and the environment are deterministic, so a
+no-food timeout means that the snake moved for twice the number of board cells
+without reaching the food. With $\epsilon=0.01$, such timeouts nearly vanished on Levels~5 and
+6. The stalls are therefore not robust to small perturbations, which is
+consistent with non-progressing cycles of the greedy policy. Because the
+experiment records only episode outcomes, it cannot separate episodes that
+escaped a cycle from episodes that a random action ended before the timeout.
+The collapse in success shows, however, that uniform random perturbation is not
+a remedy: the randomness that breaks a stall is often fatal later in the
+episode. A targeted mechanism, such as perturbing actions only after a repeated
+state is detected, is a natural next step but was not evaluated here.
 
 Level~4 presents a different failure profile: 79\% of episodes eventually
 ended in self-collision. This is not evidence of weaker short-horizon control;
@@ -641,18 +769,26 @@ $144.49\pm27.28$ and transferred without fine-tuning with success rates of
 random baseline on every level, but high variance and timeout rates on Levels~5
 and 6 indicate that generalization weakened as the evaluation environments
 became larger and more demanding. Later training improved the Level~4 mean to
-153.83 but reduced success on Levels~3 and 5, showing that stronger in-domain
-performance did not consistently translate into stronger transfer.
+153.83 but reduced success on Levels~3 and 5. Those reductions were not
+significant after correction for multiple comparisons, so stronger in-domain
+performance did not translate into reliably stronger transfer.
+
+Failure analysis located the main weakness at the start of an episode: on
+unseen levels, most failures were no-food timeouts at a median score of 1,
+while episodes that passed ten food items almost always reached the target.
+Uniform random perturbation removed these timeouts but caused far more
+collisions.
 
 Future work should repeat training over multiple seeds, introduce additional
 held-out layouts, isolate representation and reward components through ablation,
-and compare single-level training with domain randomization or curriculum
-learning under an equal environment-step budget.
+test targeted mechanisms that break non-progressing cycles, and compare
+single-level training with domain randomization or curriculum learning under an
+equal environment-step budget.
 
 % =============================================================================
 % Bibliography. Build order: pdflatex -> bibtex -> pdflatex -> pdflatex.
 % =============================================================================
-\bibliographystyle{abbrv}
+\bibliographystyle{IEEEtran}
 \bibliography{references}
 
 \end{document}

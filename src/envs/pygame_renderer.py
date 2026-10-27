@@ -1,7 +1,7 @@
-"""Pygame renderer tuy chon cho SnakeEnv.
+"""Optional pygame renderer for SnakeEnv.
 
-Module nay tach khoi SnakeEnv de training headless khong can khoi tao cua so va
-khong bi cham khi khong truyen --render.
+This module is separate from SnakeEnv so that headless training never opens a
+window and is not slowed down when --render is not passed.
 """
 from __future__ import annotations
 
@@ -25,7 +25,13 @@ class SnakeRenderer:
     TEXT = (235, 238, 245)
     MUTED = (160, 170, 185)
 
-    def __init__(self, fps: int = 30, window_size: int = 720, hud_height: int = 112) -> None:
+    def __init__(
+        self,
+        fps: int = 30,
+        window_size: int = 720,
+        hud_height: int = 112,
+        show_close_hint: bool = True,
+    ) -> None:
         if fps <= 0:
             raise ValueError("fps must be greater than zero")
         try:
@@ -41,6 +47,7 @@ class SnakeRenderer:
         self.window_size = window_size
         self.hud_height = hud_height
         self.fps = fps
+        self.show_close_hint = show_close_hint
         self.screen = pygame.display.set_mode((window_size, window_size + hud_height))
         pygame.display.set_caption("Snake RL - Training Viewer")
         self.clock = pygame.time.Clock()
@@ -56,7 +63,7 @@ class SnakeRenderer:
         return not self.closed
 
     def draw(self, env: "SnakeEnv", metadata: dict | None = None) -> bool:
-        """Ve mot frame; tra False neu nguoi dung dong cua so."""
+        """Draw one frame; return False if the user closed the window."""
         if self.closed or not self._events():
             return False
 
@@ -119,7 +126,9 @@ class SnakeRenderer:
         hud_y = self.window_size + 10
         self.screen.blit(self.font.render(line1, True, self.TEXT), (14, hud_y))
         self.screen.blit(self.small_font.render(line2, True, self.TEXT), (14, hud_y + 34))
-        hint = f"{extra}    Close window to disable rendering; training will continue."
+        hint = extra
+        if self.show_close_hint:
+            hint += "    Close window to disable rendering; training will continue."
         self.screen.blit(self.small_font.render(hint, True, self.MUTED), (14, hud_y + 65))
 
         pg.display.flip()

@@ -1,15 +1,15 @@
 """
-Double DQN agent (van Hasselt et al., 2016), dùng kiến trúc Dueling DQN
-(network.py) làm hàm xấp xỉ Q.
+Double DQN agent (van Hasselt et al., 2016) that uses the Dueling DQN
+architecture (network.py) as its Q-function approximator.
 
-Công thức target của Double DQN (khác DQN thuần ở chỗ TÁCH việc chọn action
-và đánh giá action ra 2 network riêng, để giảm overestimation bias):
+Double DQN target (unlike plain DQN, it SEPARATES action selection from action
+evaluation across two networks to reduce overestimation bias):
 
-    a* = argmax_a  Q_online(s', a)              # ONLINE network CHỌN action tốt nhất
-    y  = r + gamma * (1 - done) * Q_target(s', a*)   # TARGET network ĐÁNH GIÁ action đó
+    a* = argmax_a  Q_online(s', a)                   # ONLINE network SELECTS the best action
+    y  = r + gamma * (1 - done) * Q_target(s', a*)   # TARGET network EVALUATES that action
 
-So với DQN thuần:  y = r + gamma * (1-done) * max_a Q_target(s', a)
-                    (1 network vừa chọn vừa đánh giá -> dễ overestimate)
+Plain DQN:  y = r + gamma * (1-done) * max_a Q_target(s', a)
+            (one network both selects and evaluates -> prone to overestimation)
 """
 from __future__ import annotations
 
@@ -39,7 +39,6 @@ class DQNConfig:
     epsilon_decay_steps: int = 20000
     hidden_dim: int = 128
     gradient_clip_norm: float = 10.0
-    balanced_replay: bool = False
 
 class DoubleDQNAgent:
     def __init__(self, config: DQNConfig, device: torch.device | None = None) -> None:
@@ -51,7 +50,7 @@ class DoubleDQNAgent:
         self.online_net = DuelingQNetwork(STATE_DIM, ACTION_SPACE, config.hidden_dim).to(self.device)
         self.target_net = DuelingQNetwork(STATE_DIM, ACTION_SPACE, config.hidden_dim).to(self.device)
         self.target_net.load_state_dict(self.online_net.state_dict())
-        self.target_net.eval() # target network không train trực tiếp (không cần dropout/batchnorm behavior, nhưng để rõ ý
+        self.target_net.eval()  # the target network is never trained directly; eval() makes that explicit
         self.optimizer = torch.optim.Adam(self.online_net.parameters(), lr=config.lr)
         self.buffer = ReplayBuffer(config.buffer_size)
 
@@ -64,46 +63,25 @@ class DoubleDQNAgent:
     # Epsilon schedule
     # ------------------------------------------------------------------ #
     def epsilon(self) -> float:
-        """Epsilon giảm TUYẾN TÍNH từ epsilon_start -> epsilon_end trong epsilon_decay_steps bước."""
+        """Epsilon decays LINEARLY from epsilon_start to epsilon_end over epsilon_decay_steps steps."""
         frac = min(1.0, self.epsilon_steps / self.config.epsilon_decay_steps)
         return self.config.epsilon_start + frac * (self.config.epsilon_end - self.config.epsilon_start)
-
-    def reset_epsilon_schedule(self, start_epsilon: float | None = None) -> None:
-        """
-        Đưa epsilon về epsilon_start hoặc một giá trị exploration được chỉ định.
-
-        Dùng trong curriculum để tăng exploration khi mở level mới mà vẫn có
-        thể giữ phần lớn policy đã học ở level cũ.
-        """
-        if start_epsilon is None:
-            self.epsilon_steps = 0
-            return
-
-        high = max(self.config.epsilon_start, self.config.epsilon_end)
-        low = min(self.config.epsilon_start, self.config.epsilon_end)
-        desired = min(max(float(start_epsilon), low), high)
-        span = self.config.epsilon_start - self.config.epsilon_end
-        if abs(span) < 1e-12:
-            self.epsilon_steps = 0
-            return
-        fraction = (self.config.epsilon_start - desired) / span
-        self.epsilon_steps = int(round(fraction * self.config.epsilon_decay_steps))
 
     # ------------------------------------------------------------------ #
     # Action selection
     # ------------------------------------------------------------------ #
     def act(self, state: np.ndarray, greedy: bool = False) -> int:
         """
-        Chọn action theo epsilon-greedy (hoặc thuần greedy nếu greedy=True, dùng lúc evaluation).
+        Choose an action epsilon-greedily (or purely greedily if greedy=True, for evaluation).
 
         Args:
             state: shape (STATE_DIM,)
-            greedy: True -> luôn chọn argmax Q, bỏ qua epsilon (dùng khi evaluate, không train).
+            greedy: True -> always take argmax Q and ignore epsilon (evaluation, no training).
 
         Returns:
             action: int trong [0, ACTION_SPACE)
         """
-        assert state.shape == (STATE_DIM,), f"act() nhận state sai shape: {state.shape}"
+        assert state.shape == (STATE_DIM,), f"act() received a wrong state shape: {state.shape}"
 
         if not greedy:
             self.total_env_steps += 1
@@ -137,10 +115,10 @@ class DoubleDQNAgent:
 
     def update(self) -> None:
         """
-        1 bước gradient update trên 1 minibatch sample từ buffer.
+        One gradient update on a minibatch sampled from the buffer.
 
         Returns:
-            loss (float) nếu đã update, None nếu buffer chưa đủ transition.
+            loss (float) if an update ran, None if the buffer is not ready yet.
         """
         min_needed = max(self.config.batch_size, self.config.min_buffer_size_before_train)
         if (
@@ -150,22 +128,20 @@ class DoubleDQNAgent:
             return None
 
         states, actions, rewards, next_states, dones = self.buffer.sample(
-            self.config.batch_size,
-            self.device,
-            balanced_by_level=self.config.balanced_replay,
+            self.config.batch_size, self.device
         )
         # states:      (B, STATE_DIM)
         # actions:     (B,)
         # rewards:     (B,)
         # next_states: (B, STATE_DIM)
-        # dones:       (B,)  0.0 hoặc 1.0
+        # dones:       (B,)  0.0 or 1.0
 
         with torch.no_grad():
-            # a* = argmax_a Q_online(s', a)   -- ONLINE network chọn action
+            # a* = argmax_a Q_online(s', a)   -- the ONLINE network selects the action
             next_q_online = self.online_net(next_states)  # (B, ACTION_SPACE)
             best_next_actions = next_q_online.argmax(dim=1)  # (B,)
 
-            # Q_target(s', a*)                -- TARGET network đánh giá action đó
+            # Q_target(s', a*)                -- the TARGET network evaluates it
             next_q_target = self.target_net(next_states)  # (B, ACTION_SPACE)
             next_q_selected = next_q_target.gather(1, best_next_actions.unsqueeze(1)).squeeze(1)  # (B,)
 
@@ -175,8 +151,8 @@ class DoubleDQNAgent:
         current_q = self.online_net(states).gather(1, actions.unsqueeze(1)).squeeze(1)  # (B,)
         assert current_q.shape == td_target.shape == (self.config.batch_size,)
 
-        # Huber loss ít nhạy với TD-error ngoại lai hơn MSE khi reward/Q-target
-        # thay đổi mạnh trong các trạng thái và độ dài rắn khác nhau.
+        # Huber loss is less sensitive than MSE to outlier TD errors, which occur
+        # because rewards and Q-targets vary widely across states and snake lengths.
         loss = F.smooth_l1_loss(current_q, td_target)
 
         self.optimizer.zero_grad()

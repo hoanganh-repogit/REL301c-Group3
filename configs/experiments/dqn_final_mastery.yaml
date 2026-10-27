@@ -2,16 +2,16 @@ agent_type: dqn
 strategy: fixed_level4_continuous
 seed: 0
 
-# Final model chỉ học duy nhất môi trường Level 4.
+# The final model learns only the Level 4 environment.
 training_levels:
   - level4
 
-# 0 = chạy liên tục tới khi người dùng Ctrl+C.
+# 0 = run until the user presses Ctrl+C.
 max_env_steps: 0
 evaluation_enabled: false
 
-# Không chạy eval riêng. Chọn checkpoint tốt nhất bằng điểm trung bình trượt
-# của các episode train gần nhất.
+# No separate evaluation. The best checkpoint is chosen by the moving average
+# score of the most recent training episodes.
 best_score_window: 100
 best_score_warmup_episodes: 500
 
@@ -30,4 +30,3 @@ agent:
   epsilon_decay_steps: 400000
   hidden_dim: 256
   gradient_clip_norm: 10.0
-  balanced_replay: false

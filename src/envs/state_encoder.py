@@ -1,28 +1,28 @@
 """
-Chuyển trạng thái "thô" của game (vị trí rắn, hướng đi, vị trí mồi, vật cản)
-thành 1 feature vector CỐ ĐỊNH 27 chiều — không phụ thuộc kích thước bàn.
+Encode the raw game state (snake position, heading, food, obstacles) into a
+FIXED 27-dimensional feature vector that does not depend on board size.
 
-Đây là điểm mấu chốt để cùng 1 network có thể dùng chung cho mọi level
-(15x15 tới 30x30), vì input luôn có shape (27,) bất kể bàn to hay nhỏ.
+This is what lets one network serve every level (15x15 to 36x36): the input
+always has shape (27,), whatever the board size.
 
-Bố cục vector (thứ tự CỐ ĐỊNH, không được đổi khi đã bắt đầu train):
-    index 0-2  : danger [thẳng, phải, trái] tương đối theo hướng đang đi
-    index 3-6  : hướng đang di chuyển, one-hot [UP, DOWN, LEFT, RIGHT]
-    index 7-10 : vị trí mồi tương đối so với đầu rắn [trái, phải, trên, dưới]
-    index 11-13: khoảng trống ray chuẩn hoá [thẳng, phải, trái]
-    index 14-15: delta mồi chuẩn hoá [row, col]
-    index 16-17: vị trí đầu chuẩn hoá [row, col]
-    index 18   : tỷ lệ chiều dài rắn trên số ô khả dụng
-    index 19-21: tỷ lệ vùng an toàn sau [thẳng, phải, trái]
-    index 22-25: vị trí đuôi tương đối [trái, phải, trên, dưới]
-    index 26   : khoảng cách Manhattan chuẩn hoá từ đầu tới đuôi
+Vector layout (FIXED order; never change it once training has started):
+    index 0-2  : danger [straight, right, left] relative to the heading
+    index 3-6  : current heading, one-hot [UP, DOWN, LEFT, RIGHT]
+    index 7-10 : food relative to the head [left, right, up, down]
+    index 11-13: normalized ray clearance [straight, right, left]
+    index 14-15: normalized food offset [row, col]
+    index 16-17: normalized head position [row, col]
+    index 18   : snake length over the number of usable cells
+    index 19-21: safe-area ratio after [straight, right, left]
+    index 22-25: tail relative to the head [left, right, up, down]
+    index 26   : normalized Manhattan distance from head to tail
 """
 from __future__ import annotations
 import numpy as np
 
 STATE_DIM = 27
 
-# Vector di chuyển tương ứng mỗi hướng: (delta_row, delta_col)
+# Movement vector of each heading: (delta_row, delta_col)
 DIRECTION_VECTOR: dict[str, tuple[int, int]] = {
     "UP": (-1, 0),
     "DOWN": (1, 0),
@@ -31,15 +31,15 @@ DIRECTION_VECTOR: dict[str, tuple[int, int]] = {
 }
 
 """
-Thứ tự xoay theo chiều kim đồng hồ — dùng để tính "trái/phải tương đối"
-so với hướng đang đi hiện tại.
+Clockwise order of headings, used to compute "relative left/right" from the
+current heading.
 """
 _CLOCKWISE_ODER = ["UP", "RIGHT", "DOWN", "LEFT"]
 
 def _turn_relative(direction: str, turn: str) -> str:
     """
-    Trả về hướng tuyệt đối sau khi rẽ 'turn' (straight/right/left) từ 'direction'
-    Ví dụ: direction="UP", turn="right" -> "RIGHT"
+    Return the absolute heading after turning 'turn' (straight/right/left) from
+    'direction'. Example: direction="UP", turn="right" -> "RIGHT"
     """
     idx = _CLOCKWISE_ODER.index(direction)
     if turn == "straight":
@@ -59,13 +59,11 @@ def _is_collision(
     food_pos: tuple[int, int],
 ) -> bool:
     """
-    True nếu điểm `point` là va chạm: ra ngoài bàn, trúng vật cản, hoặc trúng thân rắn.
+    True if moving to `point` is a collision: outside the board, on an obstacle,
+    or on the snake's body.
 
-    Lưu ý (simplification có chủ đích): coi TOÀN BỘ thân rắn (kể cả ô đuôi)
-    là nguy hiểm, kể cả khi ô đuôi sẽ di chuyển đi ở bước tiếp theo.
-    Đây là cách đơn giản hoá phổ biến cho state 1-step-lookahead, có thể khiến
-    agent hơi "thận trọng quá mức" ở 1 số tình huống hiếm — chấp nhận được
-    cho phạm vi đồ án.
+    The current tail cell counts as free unless `point` is the food: without
+    eating, the tail moves away in the same step, which matches SnakeEnv.step().
     """
 
     row, col = point
@@ -73,7 +71,7 @@ def _is_collision(
         return True
     if point in obstacles:
         return True
-    # Nếu không ăn mồi, đuôi rời đi trong cùng bước nên ô đuôi hiện tại hợp lệ.
+    # Without eating, the tail leaves in the same step, so its cell is free.
     body_to_check = snake_body if point == food_pos else snake_body[:-1]
     if point in body_to_check:
         return True
@@ -81,24 +79,24 @@ def _is_collision(
 
 def encode_state(snake_body: list[tuple[int, int]], direction: str, food_pos: tuple[int, int], height: int, width: int, obstacles: set[tuple[int, int]]) -> np.ndarray:
     """
-    Encode trạng thái game thô thành vector 27 chiều.
+    Encode the raw game state as a 27-dimensional vector.
 
     Args:
-        snake_body: list toạ độ (row, col), index 0 LÀ ĐẦU RẮN.
-        direction: hướng đang di chuyển hiện tại, một trong DIRECTION_VECTORS.
-        food_pos: toạ độ (row, col) của mồi.
-        height, width: kích thước bàn hiện tại (đổi theo từng level).
-        obstacles: tập toạ độ vật cản tĩnh của level hiện tại.
+        snake_body: (row, col) coordinates; index 0 IS THE HEAD.
+        direction: current heading, one of the keys of DIRECTION_VECTOR.
+        food_pos: (row, col) of the food.
+        height, width: current board size (differs per level).
+        obstacles: static obstacle coordinates of the current level.
 
     Returns:
         np.ndarray shape (STATE_DIM,) = (27,), dtype float32.
     """
     assert direction in DIRECTION_VECTOR, f"Unknown direction: {direction}"
-    assert len(snake_body) >= 1, f"snake_boy phải có ít nhất 1 ô (đầu rắn)"
+    assert len(snake_body) >= 1, "snake_body must contain at least the head"
 
     head = snake_body[0]
 
-    # index 0-2: danger [thẳng, phải, trái]
+    # index 0-2: danger [straight, right, left]
     dir_straight = _turn_relative(direction, "straight")
     dir_right = _turn_relative(direction, "right")
     dir_left = _turn_relative(direction, "left")
@@ -117,13 +115,13 @@ def encode_state(snake_body: list[tuple[int, int]], direction: str, food_pos: tu
         _point_after(dir_left), height, width, obstacles, snake_body, food_pos
     )
 
-    # index 3-6: hướng đang đi, one-hot
+    # index 3-6: current heading, one-hot
     dir_up = direction == "UP"
     dir_down = direction == "DOWN"
     dir_left_flag = direction == "LEFT"
     dir_right_flag = direction == "RIGHT"
 
-    # index 7-10: vị trí mồi tương đối so với đầu rắn
+    # index 7-10: food position relative to the head
     food_row, food_col = food_pos
     head_row, head_col = head
     food_left = food_col < head_col
@@ -131,8 +129,8 @@ def encode_state(snake_body: list[tuple[int, int]], direction: str, food_pos: tu
     food_up = food_row < head_row
     food_down = food_row > head_row
 
-    # Số ô có thể nhìn/đi tiếp theo một tia trước collision. Đặc trưng này giúp
-    # phân biệt "an toàn ngay bước kế" với "hành lang dài/ngõ cụt" trên bàn lớn.
+    # Free cells along a ray before the first collision. This separates "safe for
+    # the next step" from "long corridor or dead end" on large boards.
     def _ray_clearance(dir_name: str) -> float:
         dr, dc = DIRECTION_VECTOR[dir_name]
         row, col = head
@@ -159,8 +157,9 @@ def encode_state(snake_body: list[tuple[int, int]], direction: str, food_pos: tu
     available_cells = max(1, height * width - len(obstacles))
     snake_length_ratio = len(snake_body) / float(available_cells)
 
-    # Đo vùng có thể tiếp cận sau từng action. BFS dừng sớm khi vùng đã đủ lớn
-    # so với chiều dài rắn, nên phát hiện ngõ cụt mà không quét cả bàn mỗi bước.
+    # Reachable area after each action. The BFS stops once the area is large
+    # relative to the snake length, so dead ends are found without scanning the
+    # whole board every step.
     def _safe_area_ratio(dir_name: str) -> float:
         candidate = _point_after(dir_name)
         if _is_collision(candidate, height, width, obstacles, snake_body, food_pos):
@@ -235,7 +234,7 @@ def encode_state(snake_body: list[tuple[int, int]], direction: str, food_pos: tu
          tail_distance], dtype=np.float32,
     )
 
-    assert state.shape == (STATE_DIM,) , f"State shape sai: {state.shape}, ky vong ({STATE_DIM},)"
+    assert state.shape == (STATE_DIM,) , f"Wrong state shape: {state.shape}, expected ({STATE_DIM},)"
     return state
 
 

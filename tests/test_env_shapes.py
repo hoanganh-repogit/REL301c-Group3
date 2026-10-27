@@ -1,7 +1,7 @@
 """
-Kiểm tra: state luôn có shape cố định (STATE_DIM,) trên CẢ 6 level,
-bất kể kích thước bàn khác nhau. Đây là điều kiện tiên quyết để 1 network
-dùng chung được cho mọi level.
+Check that the state always has the fixed shape (STATE_DIM,) on ALL six levels,
+whatever the board size. This is the precondition for sharing one network
+across every level.
 """
 
 import glob
@@ -44,15 +44,15 @@ def test_step_state_shape(config_path):
 
 
 def test_all_six_levels_present():
-    """Đảm bảo đúng 6 file level tồn tại (không bị thiếu/thừa khi tổ chức lại config)."""
+    """Exactly six level files must exist (none missing or extra after config changes)."""
     names = {load_env_config(p).name for p in ALL_LEVEL_FILES}
     expected = {"level1", "level2", "level3", "level4", "level5_holdout", "level6"}
-    assert names == expected, f"Thiếu/thừa level: {expected.symmetric_difference(names)}"
+    assert names == expected, f"Missing or extra levels: {expected.symmetric_difference(names)}"
 
 
 def test_level5_is_marked_holdout():
-    """Level 5 PHẢI được đánh dấu is_holdout=True — sai cấu hình này sẽ làm hỏng
-    toàn bộ thí nghiệm generalization (leak dữ liệu test vào train)."""
+    """Level 5 MUST be marked is_holdout=True. Getting this wrong would break the
+    generalization experiment by leaking test data into training."""
     level5_path = os.path.join(CONFIG_DIR, "level5_holdout.yaml")
     config = load_env_config(level5_path)
     assert config.is_holdout is True
@@ -60,7 +60,7 @@ def test_level5_is_marked_holdout():
     for path in ALL_LEVEL_FILES:
         if path != level5_path:
             config = load_env_config(path)
-            assert config.is_holdout is False, f"{config.name} không phải level 5 nhưng lại is_holdout=True"
+            assert config.is_holdout is False, f"{config.name} is not Level 5 but has is_holdout=True"
 
 
 def test_load_all_levels_returns_all_configs():
@@ -97,7 +97,7 @@ def test_all_free_cells_are_connected(config_path):
 
     free_cells = config.height * config.width - len(blocked)
     assert len(seen) == free_cells, (
-        f"{config.name}: chỉ kết nối {len(seen)}/{free_cells} ô trống"
+        f"{config.name}: only {len(seen)}/{free_cells} free cells are connected"
     )
 
 

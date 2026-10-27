@@ -10,8 +10,8 @@ On Windows with Python 3.11 installed, clone the repository and run:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\web_demo\run_local.ps1
 ```
 
-`-ExecutionPolicy Bypass` chỉ áp dụng cho tiến trình PowerShell này; nó không
-thay đổi execution policy đã cấu hình trên máy.
+`-ExecutionPolicy Bypass` applies only to this PowerShell process; it does not
+change the execution policy configured on the machine.
 
 The script creates an isolated `.venv-web-demo`, installs only the web-demo
 dependencies, and starts the server. Python 3.11 must be installed first. To
@@ -44,6 +44,6 @@ docker run --rm -p 8000:8000 snake-dqn-demo
 
 For a container host, use the Dockerfile, expose port `8000`, and set a health check at `/api/health`. The root `.dockerignore` packages only `checkpoint_best.pt` (about 1.2 MB), not `checkpoint_latest.pt`, which contains the replay buffer.
 
-`checkpoint_best.pt` is intentionally tracked in Git, so a fresh clone has the
-model required by the demo. Other results and the large replay-buffer checkpoint
-remain ignored.
+`checkpoint_best.pt` is tracked in Git, so a fresh clone has the model required
+by the demo. The same checkpoint is used by the report and by
+`scripts/play_final_dqn.py`. The Docker image excludes the other results.

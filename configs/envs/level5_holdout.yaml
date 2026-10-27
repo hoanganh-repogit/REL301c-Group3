@@ -1,4 +1,4 @@
-# Level 5 — held-out: các thanh chắn lệch tầng, khác hoàn toàn Level 4
+# Level 5 — held-out: staggered bars, completely different from Level 4
 name: level5_holdout
 target_score: 100
 size: [32, 32]

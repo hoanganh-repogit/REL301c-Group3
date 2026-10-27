@@ -1,49 +1,60 @@
 # Snake DQN research presentation
 
-File chính: `Snake_DQN_Research_Presentation.pptx`.
-Bản đọc nhanh: `Snake_DQN_Research_Presentation.pdf`.
-Xem toàn bộ bố cục: `contact_sheet.png`.
+Main file: `Snake_DQN_Research_Presentation.pptx`.
+Quick-read version: `Snake_DQN_Research_Presentation.pdf`.
+Overview of all slides: `contact_sheet.png`.
 
-## Nội dung và cách sử dụng
+## Content and usage
 
-- Slide tiếng Anh, lời dẫn tiếng Việt nằm trong **Speaker Notes** của từng slide.
-- Lời dẫn cũng có trong `speaker_notes_vi.md` để luyện nói riêng.
-- Slide 1–19: phần trình bày chính, dự kiến 12–15 phút.
-- Slide 20–21: bảng chi tiết và câu hỏi dự phòng cho phần bảo vệ.
-- Trong PowerPoint, dùng **Slide Show → Presenter View** để xem Notes khi trình bày.
-- Điền tên tác giả, đơn vị và người hướng dẫn trên slide đầu trước khi nộp.
+- Slides are in English; the Vietnamese talk track is in the **Speaker Notes** of
+  each slide.
+- The talk track is also in `speaker_notes_vi.md` for rehearsal.
+- Slides 1–19: main talk, about 12–15 minutes.
+- Slides 20–21: detailed table and backup questions for the defense.
+- In PowerPoint, use **Slide Show → Presenter View** to see the notes while
+  presenting.
+- Fill in the authors, affiliation, and supervisor on the first slide before
+  submission.
 
-## Phong cách
+## Style
 
-Được tạo từ `Green and Black Minimalist Pixel Game Night Presentation.pptx`.
-Giữ kích thước 16:9, nền xanh xám `#788B73`, khung đen, trang trí pixel ở
-slide đầu/cuối và font tiêu đề Pixellance được nhúng trong template.
-Nội dung khoa học dùng Aptos để đọc được bảng, công thức và số liệu.
-Text, bảng và thanh success rate vẫn chỉnh sửa được trong PowerPoint;
-các hình phân tích là ảnh từ pipeline báo cáo.
+Built from the template `latex/slides/template.pptx`.
+It keeps the 16:9 size, the grey-green background `#788B73`, the black frame,
+the pixel decorations on the first and last slides, and the Pixellance title
+font embedded in the template.
+Scientific content uses Aptos so that tables, formulas, and numbers stay
+readable. Text, tables, and success-rate bars remain editable in PowerPoint; the
+analysis charts are images from the report pipeline.
 
-## Dữ liệu
+## Data
 
-Nội dung bám theo `../main.tex`, `../../configs/experiments/dqn_final_mastery.yaml`,
-`../../results/cross_level_evaluation/summary.csv` và các biểu đồ trong `../generated/`.
-Chỉ trình bày Dueling Double DQN train trên Level 4. Có best checkpoint,
-final checkpoint và random baseline. Không bổ sung kết quả thí nghiệm mới.
+The content follows `../main.tex`, `../../configs/experiments/dqn_final_mastery.yaml`,
+`../../results/cross_level_evaluation/summary.csv`, and the charts in `../generated/`.
+It presents only the Dueling Double DQN trained on Level 4, with the best
+checkpoint, the final checkpoint, and the random baseline.
 
-## Tạo lại
+## Regenerating
 
-Từ thư mục gốc repository, với Python và các thư viện tương ứng:
-
-```powershell
-py -m pip install --target .tools/presentation python-pptx matplotlib numpy
-py latex/scripts/generate_report_assets.py
-py latex/scripts/generate_presentation.py
-```
-
-Mở PPTX bằng PowerPoint và Export sang PDF. Nếu xuất slide PNG vào thư mục
-`latex/slides/preview`, có thể tạo ảnh tổng quan bằng:
+From the repository root. The packages in `.tools/presentation` are built for
+Python 3.14, so use `py -3.14`:
 
 ```powershell
-py latex/scripts/preview_presentation.py
+py -3.14 -m pip install --target .tools/presentation python-pptx matplotlib numpy pyyaml
+py -3.14 latex/scripts/generate_report_assets.py
+py -3.14 latex/scripts/generate_presentation.py
 ```
 
-Các file đầu ra sẽ được ghi lại khi chạy script. File template gốc được giữ nguyên.
+Open the PPTX in PowerPoint and export it to PDF. If the slide PNGs are exported
+into `latex/slides/preview`, the overview image can be created with:
+
+```powershell
+py -3.14 latex/scripts/preview_presentation.py
+```
+
+The scripts overwrite their output files. The original template is never
+modified.
+
+**Font note:** on a machine without the Pixellance font installed, PowerPoint
+exports (PDF or PNG) fall back to a plain font for the slide titles, even though
+the font is embedded in the PPTX. Install Pixellance in Windows before
+exporting.

@@ -5,7 +5,7 @@
 __pycache__
 *.pyc
 latex
-notebooks
+docs
 tests
 results/**
 !results/level4_continuous_dqn/

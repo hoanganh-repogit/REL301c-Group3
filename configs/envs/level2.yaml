@@ -1,4 +1,4 @@
-# Level 2 — nhập môn vật cản: bốn cặp trụ ngắn, bố trí đối xứng
+# Level 2 — first obstacles: four short pillar pairs, placed symmetrically
 name: level2
 target_score: 35
 size: [20, 20]

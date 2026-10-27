@@ -1,7 +1,0 @@
-{
-  "status": "completed",
-  "experiment": "dqn_random_dr",
-  "seed": 4,
-  "started_at_utc": "2026-09-26T15:00:38.904047+00:00",
-  "completed_at_utc": "2026-09-26T15:35:19.986442+00:00"
-}

@@ -1,7 +1,7 @@
 """
-Kiểm tra shape và logic cơ bản của DuelingQNetwork + DoubleDQNAgent —
-KHÔNG chạy full training (đã có sanity_train_dqn_level1.py cho việc đó),
-chỉ đảm bảo mọi thứ chạy đúng shape/kiểu dữ liệu, không crash.
+Shape and basic logic checks for DuelingQNetwork + DoubleDQNAgent. These tests
+do NOT run full training (scripts/train_final_dqn.py does that); they only check
+shapes and dtypes and that nothing crashes.
 """
 
 import numpy as np
@@ -79,22 +79,6 @@ def test_replay_buffer_state_round_trip():
     np.testing.assert_array_equal(restored.buffer[-1].state, source.buffer[-1].state)
 
 
-def test_balanced_replay_samples_multiple_levels():
-    buffer = ReplayBuffer(capacity=100)
-    state = np.zeros(STATE_DIM, dtype=np.float32)
-    for _ in range(30):
-        buffer.push(state, 0, 1.0, state, False, level="level1")
-    for _ in range(5):
-        buffer.push(state, 0, 1.0, state, False, level="level2")
-
-    states, actions, rewards, next_states, dones = buffer.sample(
-        16,
-        device=torch.device("cpu"),
-        balanced_by_level=True,
-    )
-    assert states.shape == (16, STATE_DIM)
-
-
 def test_agent_act_returns_valid_action():
     agent = DoubleDQNAgent(DQNConfig())
     state = np.random.randn(STATE_DIM).astype(np.float32)
@@ -104,7 +88,7 @@ def test_agent_act_returns_valid_action():
 
 
 def test_agent_act_greedy_deterministic():
-    """Với greedy=True, cùng 1 state phải luôn ra cùng 1 action (không random)."""
+    """With greedy=True, the same state must always give the same action (no randomness)."""
     agent = DoubleDQNAgent(DQNConfig())
     state = np.random.randn(STATE_DIM).astype(np.float32)
     action1 = agent.act(state, greedy=True)
@@ -116,7 +100,7 @@ def test_agent_update_returns_none_when_buffer_too_small():
     config = DQNConfig(min_buffer_size_before_train=500)
     agent = DoubleDQNAgent(config)
     state = np.random.randn(STATE_DIM).astype(np.float32)
-    agent.store(state, 0, 1.0, state, False)  # chỉ 1 transition, chưa đủ
+    agent.store(state, 0, 1.0, state, False)  # only one transition, not enough
     assert agent.update() is None
 
 
@@ -130,21 +114,18 @@ def test_agent_update_runs_when_buffer_enough():
 
     loss = agent.update()
     assert loss is not None
-    assert loss >= 0.0  # MSE loss luôn không âm
+    assert loss >= 0.0  # the loss is never negative
 
 
-def test_epsilon_schedule_decays_and_resets():
+def test_epsilon_schedule_decays_to_end():
     config = DQNConfig(epsilon_start=1.0, epsilon_end=0.1, epsilon_decay_steps=100)
     agent = DoubleDQNAgent(config)
-    assert agent.epsilon() == 1.0  # chưa bước nào -> epsilon_start
+    assert agent.epsilon() == 1.0  # no steps yet -> epsilon_start
 
     state = np.random.randn(STATE_DIM).astype(np.float32)
     for _ in range(100):
-        agent.act(state)  # mỗi lần act (không greedy) tăng total_env_steps 1 đơn vị
+        agent.act(state)  # each non-greedy act() increments total_env_steps by 1
 
-    assert abs(agent.epsilon() - 0.1) < 1e-6  # đã decay hết -> epsilon_end
-
-    agent.reset_epsilon_schedule()
-    assert agent.epsilon() == 1.0  # reset về start -- dùng khi lên level mới (Giai đoạn 3)
+    assert abs(agent.epsilon() - 0.1) < 1e-6  # fully decayed -> epsilon_end
 
 

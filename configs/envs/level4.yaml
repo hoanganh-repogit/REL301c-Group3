@@ -1,9 +1,9 @@
-# Level 4 — môi trường final duy nhất: bàn rộng, vật cản cân đối và không tạo vùng kín
+# Level 4 — the only training environment: large board, balanced obstacles, no enclosed areas
 name: level4
-# Không giới hạn điểm; episode chỉ dừng khi chết, timeout hoặc lấp đầy bàn.
+# No score limit; an episode ends only on death, timeout, or a full board.
 target_score: null
 size: [30, 30]
-# Sáu cột ngắn đối xứng. Các hành lang giữa và quanh mép luôn thông nhau.
+# Six short symmetric columns. The central and edge corridors are always connected.
 obstacles:
   - [5, 6]
   - [6, 6]

@@ -9,7 +9,6 @@ pytest-cache-files-*/
 .venv-web-demo/
 results/*
 !results/cross_level_evaluation/
-!results/final_dqn/
 !results/level4_continuous_dqn/
-!results/phase4/
+!results/epsilon_effect/
 *.pth

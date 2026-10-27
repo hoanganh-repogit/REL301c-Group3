@@ -1,7 +1,0 @@
-{
-  "status": "completed",
-  "experiment": "ppo_fixed",
-  "seed": 2,
-  "started_at_utc": "2026-09-26T15:53:59.104371+00:00",
-  "completed_at_utc": "2026-09-26T15:57:21.281210+00:00"
-}

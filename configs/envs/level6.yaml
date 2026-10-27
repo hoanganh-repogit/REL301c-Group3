@@ -1,9 +1,10 @@
-# Level 6 — challenge: bàn lớn, cột dài và thanh chắn xen kẽ
+# Level 6 — challenge: large board, long columns and alternating bars
 name: level6
 target_score: 150
 size: [36, 36]
-# Các cụm không nối kín; luôn có nhiều cổng để đổi vùng nhưng yêu cầu
-# agent quan sát khoảng trống và tránh tự khóa khi thân dài.
+# The clusters never close off an area; there are always several gates between
+# regions, but the agent must watch the free space and avoid trapping itself
+# when its body is long.
 obstacles:
   - [4, 7]
   - [5, 7]

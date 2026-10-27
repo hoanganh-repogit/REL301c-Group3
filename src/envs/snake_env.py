@@ -1,9 +1,13 @@
 """
-Môi trường Snake tham số hoá theo level (EnvConfig): kích thước bàn và
-vật cản đều đọc từ config, không hard-code — để cùng 1 class dùng được
-cho mọi level (Giai đoạn 1 của kế hoạch).
+Snake environment parameterized by level (EnvConfig): board size and obstacles
+come from the config rather than being hard-coded, so one class serves every
+level.
 
-Interface theo phong cách Gym cổ điển: reset() -> state, step(action) -> (state, reward, done, info)
+Classic Gym-style interface: reset() -> state, step(action) -> (state, reward, done, info)
+
+info["truncated"] = True when an episode is cut by the no-food timeout. That is
+not a true terminal state, so the trainer keeps bootstrapping from next_state
+instead of treating it as a death.
 """
 from __future__ import annotations
 from typing import Optional
@@ -12,8 +16,8 @@ from src.envs.state_encoder import (DIRECTION_VECTOR, STATE_DIM, encode_state)
 from src.utils.config_loader import EnvConfig
 
 
-# Ba action tương đối: đi thẳng, rẽ phải, rẽ trái. Action agent chọn luôn
-# trùng với chuyển động môi trường thực hiện, không còn action quay ngược bị bỏ qua.
+# Three relative actions: straight, turn right, turn left. The chosen action is
+# always the move the environment performs; there is no ignored reverse action.
 ACTION_SPACE = 3
 ACTION_TO_TURN = {0: "STRAIGHT", 1: "RIGHT", 2: "LEFT"}
 _CLOCKWISE = ["UP", "RIGHT", "DOWN", "LEFT"]
@@ -29,36 +33,37 @@ def _apply_relative_turn(direction: str, turn: str) -> str:
         return _CLOCKWISE[(idx - 1) % 4]
     raise ValueError(f"Unknown relative turn: {turn}")
 
-# Hệ số reward — CỐ ĐỊNH, dùng chung cho mọi level để so sánh công bằng
+# Reward constants: FIXED and shared by every level for a fair comparison
 REWARD_FOOD = 10.0
 REWARD_DEATH = -20.0
-REWARD_STEP = -0.005 # phạt rất nhẹ, không ép rắn lao vào mồi khi đường nguy hiểm
+REWARD_STEP = -0.005 # very small penalty, so the snake is not pushed toward food on a risky path
 REWARD_CLOSER = 0.02
 REWARD_FARTHER = -0.02
 
 """
-Giới hạn số bước tối đa 1 episode (an toàn, tránh vòng lặp vô hạn khi
-agent chưa học được gì, ví dụ với random policy lúc sanity-check).
+No-food timeout per board cell: an episode times out after
+height * width * this many consecutive steps without food. It prevents endless
+loops, e.g. of an untrained or random policy.
 """
 _MAX_STEPS_WITHOUT_FOOD_PER_CELL = 2
 
 class SnakeEnv:
-    """Môi trường Snake, tham số hoá theo EnvConfig (1 level)."""
+    """Snake environment for one level, parameterized by EnvConfig."""
 
     def __init__(self, config: EnvConfig, seed: Optional[int] = None) -> None:
         self.config = config
         self.height = config.height
         self.width = config.width
         self.obstacles: set[tuple[int, int]] = set(config.obstacles)
-        # Timeout theo số bước liên tiếp không ăn được mồi, không theo tổng độ
-        # dài episode. Ăn mồi sẽ reset bộ đếm để target cao vẫn khả thi.
+        # The timeout counts consecutive steps without food, not the total episode
+        # length. Eating resets the counter, so high targets remain reachable.
         self.max_steps_without_food = (
             self.height * self.width * _MAX_STEPS_WITHOUT_FOOD_PER_CELL
         )
 
         self.rng = np.random.RandomState(seed=seed)
 
-        # Các thuộc tính này được gán thật trong reset(), khai báo trước để rõ kiểu dữ liệu
+        # Assigned for real in reset(); declared here to document their types
         self.snake_body: list[tuple[int, int]] = []
         self.direction: str = "RIGHT"
         self.food_ops: tuple[int, int] = (0, 0)
@@ -71,7 +76,7 @@ class SnakeEnv:
     # ------------------------------------------------------------------ #
 
     def reset(self, seed: Optional[int] = None) -> np.ndarray:
-        """Bắt đầu episode mới. Trả về state ban đầu, shape (STATE_DIM,)."""
+        """Start a new episode and return the initial state, shape (STATE_DIM,)."""
         if seed is not None:
             self.rng = np.random.RandomState(seed)
 
@@ -90,29 +95,29 @@ class SnakeEnv:
             width=self.width,
             obstacles=self.obstacles,
         )
-        assert state.shape == (STATE_DIM,), f"reset() trả state sai shape: {state.shape}"
+        assert state.shape == (STATE_DIM,), f"reset() returned a wrong state shape: {state.shape}"
         return state
 
     def _sample_valid_start(self) -> list[tuple[int, int]]:
         """
-        Tìm vị trí khởi tạo rắn dài 3 ô hợp lệ (không trúng vật cản/ngoài bàn).
+        Find a valid start for a 3-cell snake (inside the board, not on obstacles).
 
-        Rắn khởi tạo hướng RIGHT nên thân nằm bên TRÁI đầu:
+        The snake starts heading RIGHT, so its body lies to the LEFT of the head:
         body = [head, head-1_col, head-2_col]
         """
         for _ in range(1000):
             r = self.rng.randint(1, self.height - 1)
-            c = self.rng.randint(3, self.width) # cần c-2 >= 0 => c >= 2, lấy dư ra 1 chút cho an toàn
+            c = self.rng.randint(3, self.width) # c - 2 >= 0 requires c >= 2; start at 3 for a margin
             candidate = [(r, c), (r, c - 1), (r, c - 2)]
             if all(0 <= cc < self.width for (_, cc) in candidate) and not any(p in self.obstacles for p in candidate):
                 return candidate
         raise RuntimeError(
-            f"[{self.config.name}] Không tìm được vị trí khởi tạo hợp lệ cho rắn "
-            "sau 1000 lần thử — kiểm tra lại obstacles có chiếm quá nhiều bàn cờ không."
+            f"[{self.config.name}] No valid snake start found after 1000 attempts; "
+            "check whether the obstacles cover too much of the board."
         )
 
     def _sample_food_position(self) -> tuple[int, int]:
-        """Sample vị trí mồi ngẫu nhiên, không trùng thân rắn / vật cản."""
+        """Sample a random food position that is not on the snake or an obstacle."""
         occupied = self.obstacles | set(self.snake_body)
         free_cells = [
             (row, col)
@@ -121,7 +126,7 @@ class SnakeEnv:
             if (row, col) not in occupied
         ]
         if not free_cells:
-            raise RuntimeError(f"[{self.config.name}] Không còn ô trống để spawn mồi.")
+            raise RuntimeError(f"[{self.config.name}] No free cell left to spawn food.")
         return free_cells[int(self.rng.randint(0, len(free_cells)))]
 
     # ------------------------------------------------------------------ #
@@ -129,16 +134,17 @@ class SnakeEnv:
     # ------------------------------------------------------------------ #
     def step(self, action: int) -> tuple[np.ndarray, float, bool, dict]:
         """
-        Thực hiện 1 action.
+        Apply one action.
 
         Args:
             action: 0=STRAIGHT, 1=TURN_RIGHT, 2=TURN_LEFT.
 
         Returns:
             (state, reward, done, info) — state shape (STATE_DIM,).
-            info gồm: score (số mồi đã ăn), death_cause (None nếu chưa chết).
+            info contains: score (food eaten), death_cause (None while alive),
+            truncated (True when cut by the timeout).
         """
-        assert action in ACTION_TO_TURN, f"action không hợp lệ: {action}"
+        assert action in ACTION_TO_TURN, f"invalid action: {action}"
         actual_dir = _apply_relative_turn(self.direction, ACTION_TO_TURN[action])
 
         dr, dc = DIRECTION_VECTOR[actual_dir]
@@ -149,8 +155,8 @@ class SnakeEnv:
         will_grow = new_head == self.food_pos
 
         """
-        Nếu rắn KHÔNG ăn mồi, đuôi sẽ dịch đi -> va vào ô đuôi hiện tại là hợp lệ.
-        Nếu CÓ ăn mồi, đuôi giữ nguyên -> va vào ô đuôi vẫn tính là chết.
+        Without eating, the tail moves away, so entering the current tail cell is legal.
+        When eating, the tail stays, so entering the tail cell is still a collision.
         """
         body_to_check_collision = self.snake_body if will_grow else self.snake_body[:-1]
 
@@ -169,34 +175,34 @@ class SnakeEnv:
             reward = REWARD_DEATH
             done = True
             state = encode_state(
-                snake_body=self.snake_body,  # giữ nguyên state trước khi chết để log/debug
+                snake_body=self.snake_body,  # keep the pre-death state for logging/debugging
                 direction=self.direction,
                 food_pos=self.food_pos,
                 height=self.height,
                 width=self.width,
                 obstacles=self.obstacles,
             )
-            info = {"score": self.score, "death_cause": death_cause}
-            assert state.shape == (STATE_DIM,), f"step() trả state sai shape: {state.shape}"
+            info = {"score": self.score, "death_cause": death_cause, "truncated": False}
+            assert state.shape == (STATE_DIM,), f"step() returned a wrong state shape: {state.shape}"
             return state, reward, done, info
 
-        # Không va chạm: cập nhật trạng thá
+        # No collision: update the state
         self.direction = actual_dir
         new_body = [new_head] + self.snake_body
         if will_grow:
             self.score += 1
             self.steps_since_food = 0
             reward = REWARD_FOOD
-            # không pop đuôi -> rắn dài ra
+            # keep the tail -> the snake grows
         else:
-            new_body.pop()  # bỏ ô đuôi cũ
+            new_body.pop()  # drop the old tail cell
             new_food_distance = abs(new_head[0] - self.food_pos[0]) + abs(new_head[1] - self.food_pos[1])
             distance_reward = REWARD_CLOSER if new_food_distance < old_food_distance else REWARD_FARTHER
             reward = REWARD_STEP + distance_reward
         self.snake_body = new_body
 
-        # Chỉ sample sau khi đã cập nhật thân rắn, nếu không mồi mới có thể
-        # spawn ngay trên ô đầu vừa ăn mồi.
+        # Sample only after updating the body; otherwise new food could spawn on
+        # the cell the head has just entered.
         if will_grow:
             free_cells = self.height * self.width - len(self.obstacles) - len(self.snake_body)
             if free_cells == 0:
@@ -210,7 +216,11 @@ class SnakeEnv:
                     width=self.width,
                     obstacles=self.obstacles,
                 )
-                return state, reward, done, {"score": self.score, "death_cause": death_cause}
+                return state, reward, done, {
+                    "score": self.score,
+                    "death_cause": death_cause,
+                    "truncated": False,
+                }
             self.food_pos = self._sample_food_position()
 
             if self.config.target_score is not None and self.score >= self.config.target_score:
@@ -225,6 +235,7 @@ class SnakeEnv:
                 return state, reward, True, {
                     "score": self.score,
                     "death_cause": "target_reached",
+                    "truncated": False,
                 }
 
         done = self.steps_since_food >= self.max_steps_without_food
@@ -238,15 +249,15 @@ class SnakeEnv:
             width=self.width,
             obstacles=self.obstacles,
         )
-        info = {"score": self.score, "death_cause": death_cause}
-        assert state.shape == (STATE_DIM,), f"step() trả state sai shape: {state.shape}"
+        info = {"score": self.score, "death_cause": death_cause, "truncated": done}
+        assert state.shape == (STATE_DIM,), f"step() returned a wrong state shape: {state.shape}"
         return state, reward, done, info
 
     # ------------------------------------------------------------------ #
     # Render (debug / sanity check)
     # ------------------------------------------------------------------ #
     def render(self) -> str:
-        """Trả về chuỗi biểu diễn bàn cờ dạng ASCII để in ra kiểm tra thủ công."""
+        """Return an ASCII drawing of the board for manual inspection."""
         grid = [["." for _ in range(self.width)] for _ in range(self.height)]
         for (r, c) in self.obstacles:
             grid[r][c] = "#"
