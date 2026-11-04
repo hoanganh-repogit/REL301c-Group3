@@ -1,6 +1,6 @@
 """Measure how a small epsilon changes the frozen policy's scores.
 
-Level 4: the training moving average (~52) is much lower than the greedy
+Level 4: the 1,000-episode training mean (~43-47) is much lower than the greedy
 evaluation score (~144); epsilon = 0.01 tests whether residual exploration
 explains that gap. Levels 5 and 6: greedy failures are mostly early no-food
 timeouts; epsilon = 0.01 tests whether occasional random actions break those

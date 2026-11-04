@@ -336,7 +336,7 @@ def build():
         'không có PPO trong phạm vi nghiên cứu chính. Cần nhiều seed để kết luận độ ổn định của thuật toán. '
         'Điểm greedy cao hơn training vì lúc train vẫn còn 1% action ngẫu nhiên. Đã kiểm chứng: '
         'chạy lại Level 4 cùng 100 seed với epsilon 0,01 thì mean giảm từ 144,49 xuống 43,58, '
-        'khớp rolling mean lúc train (44–52).')
+        'khớp điểm trung bình mỗi 1.000 episode lúc train (khoảng 43–47).')
     table(s,['Question','Evidence-based answer'],[
         ['Why call these levels unseen?','Only L4 supplied training transitions in this run.'],
         ['Does 100% mean guaranteed success?','No; 100/100 gives a 95% Wilson interval of 96.3–100%.'],

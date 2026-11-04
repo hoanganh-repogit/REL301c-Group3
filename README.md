@@ -47,7 +47,7 @@ Greedy evaluation, 100 episodes per level, with the same 100 seeds (1234–1333)
 - **Transfer weakens on larger, more obstructed boards.** Success drops to 74% on Level 5 and 54% on Level 6.
 - **The weakness is at the start of an episode.** On unseen levels, most failures are timeouts while the snake is still short (median score at timeout: 1). Episodes that reach 10 food items finish in 318 of 325 cases.
 - **Longer training does not reliably improve transfer.** The final checkpoint is stronger on Level 4 (153.83), but its success rates do not differ significantly from the best checkpoint (exact McNemar test with Holm correction).
-- **Training scores are lower than evaluation scores because of exploration.** The training moving average is about 44–52. Adding ε = 0.01 back during evaluation drops the Level 4 score to 43.58, the same level as during training.
+- **Training scores are lower than evaluation scores because of exploration.** The 1,000-episode training mean is about 43–47. Adding ε = 0.01 back during evaluation drops the Level 4 score to 43.58, the same level as during training.
 
 The full analysis is in the IEEE-style report `latex/main.tex`.
 
