@@ -361,7 +361,6 @@ latex/
 └── slides/
     ├── template.pptx         # original template, do not edit
     ├── Snake_DQN_Research_Presentation.pptx
-    ├── Snake_DQN_Research_Presentation.pdf
     ├── speaker_notes_vi.md
     └── preview/
 ```

@@ -1,7 +1,6 @@
 # Snake DQN research presentation
 
 Main file: `Snake_DQN_Research_Presentation.pptx`.
-Quick-read version: `Snake_DQN_Research_Presentation.pdf`.
 Overview of all slides: `contact_sheet.png`.
 
 ## Content and usage
@@ -13,8 +12,6 @@ Overview of all slides: `contact_sheet.png`.
 - Slides 20–21: detailed table and backup questions for the defense.
 - In PowerPoint, use **Slide Show → Presenter View** to see the notes while
   presenting.
-- Fill in the authors, affiliation, and supervisor on the first slide before
-  submission.
 
 ## Style
 
@@ -44,7 +41,7 @@ py -3.14 latex/scripts/generate_report_assets.py
 py -3.14 latex/scripts/generate_presentation.py
 ```
 
-Open the PPTX in PowerPoint and export it to PDF. If the slide PNGs are exported
+Open the PPTX in PowerPoint. If the slide PNGs are exported
 into `latex/slides/preview`, the overview image can be created with:
 
 ```powershell

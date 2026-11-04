@@ -5,7 +5,7 @@ Suggested duration: 12–15 minutes, excluding questions.
 
 ## 01. Cross-Level Generalization of DQN in Snake
 
-Mục tiêu của đề tài là kiểm tra một Dueling Double DQN chỉ học trên Level 4 có thể chơi các level khác đến đâu. Đây là đánh giá zero-shot: giữ nguyên checkpoint và không fine-tune. Bài tập trung DQN. Tên đầy đủ trùng với báo cáo; bổ sung tên tác giả và đơn vị trước buổi trình bày.
+Mục tiêu của đề tài là kiểm tra một Dueling Double DQN chỉ học trên Level 4 có thể chơi các level khác đến đâu. Đây là đánh giá zero-shot: giữ nguyên checkpoint và không fine-tune. Bài tập trung DQN. Tên đầy đủ trùng với báo cáo. Tác giả: Nguyen Duc Manh và Hoang Van Anh, FPT University.
 
 ## 02. The research question
 
@@ -51,9 +51,9 @@ Mỗi policy–level chạy 100 episode với seed 1234–1333. Network giữ ng
 
 Không chỉ xem mean: Level 6 median 150 nhưng P25 chỉ 1, cho thấy nhiều episode hoặc hoàn thành target hoặc gần như không tiến triển. L4 mean 144,49 SD 27,28 và median 154. Các score không trực tiếp cùng thang độ khó vì có target và kích thước khác nhau.
 
-## 13. Checkpoint choice changes transfer
+## 13. Best vs final checkpoint
 
-Final checkpoint tăng L4 mean lên 153,83 nhưng L3 success giảm từ 93 xuống 83 và L5 từ 74 xuống 65. L6 mean tăng nhẹ nhưng success giảm 54 xuống 52. Đây là so sánh mô tả với cùng seed, không tuyên bố khác biệt có ý nghĩa thống kê. Random mean chỉ 0,02–0,10 và không hoàn thành target nào.
+Final checkpoint tăng L4 mean lên 153,83 nhưng L3 success giảm từ 93 xuống 83 và L5 từ 74 xuống 65. L6 mean tăng nhẹ nhưng success giảm 54 xuống 52. Hai checkpoint dùng cùng seed nên nhóm kiểm định success theo cặp bằng exact McNemar, hiệu chỉnh Holm trên năm level có target. Chỉ L3 có p = 0,041 trước hiệu chỉnh; sau hiệu chỉnh mọi level đều có p từ 0,207 trở lên, nên khác biệt transfer giữa hai checkpoint chưa đáng tin về thống kê. Random mean chỉ 0,02–0,10 và không hoàn thành target nào.
 
 ## 14. Where the policy fails
 

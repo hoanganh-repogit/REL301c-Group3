@@ -152,13 +152,14 @@ def build():
     s = start('Cross-Level Generalization of DQN in Snake',
         'Mục tiêu của đề tài là kiểm tra một Dueling Double DQN chỉ học trên Level 4 có thể chơi các level khác đến đâu. '
         'Đây là đánh giá zero-shot: giữ nguyên checkpoint và không fine-tune. Bài tập trung DQN. '
-        'Tên đầy đủ trùng với báo cáo; bổ sung tên tác giả và đơn vị trước buổi trình bày.', cover=True)
+        'Tên đầy đủ trùng với báo cáo. Tác giả: Nguyen Duc Manh và Hoang Van Anh, FPT University.', cover=True)
     box(s, 3.4, 2.4, 13.2, 6.1, GREEN)
-    text(s, 'SNAKE', 4, 2.85, 12, 1.35, 95, 'Pixellance', align=PP_ALIGN.CENTER)
-    text(s, 'CROSS-LEVEL GENERALIZATION', 3.9, 4.45, 12.2, .85, 41, 'Pixellance', align=PP_ALIGN.CENTER)
+    text(s, 'SNAKE', 4, 2.6, 12, 1.35, 95, 'Pixellance', align=PP_ALIGN.CENTER)
+    text(s, 'CROSS-LEVEL GENERALIZATION', 3.9, 4.1, 12.2, .85, 41, 'Pixellance', align=PP_ALIGN.CENTER)
     text(s, 'Evaluating a Dueling Double DQN\nTrained in a Single Snake Environment',
-         4.1, 5.65, 11.8, 1.5, 32, align=PP_ALIGN.CENTER)
-    text(s, 'Research presentation | October 2026', 4, 7.45, 12, .5, 23, align=PP_ALIGN.CENTER)
+         4.1, 5.05, 11.8, 1.5, 32, align=PP_ALIGN.CENTER)
+    text(s, 'Nguyen Duc Manh  |  Hoang Van Anh', 4, 6.65, 12, .6, 28, bold=True, align=PP_ALIGN.CENTER)
+    text(s, 'FPT University | Research presentation | November 2026', 4, 7.4, 12, .5, 23, align=PP_ALIGN.CENTER)
 
     s = start('The research question', 'Mở đầu bằng sự khác nhau giữa chơi tốt ở môi trường train và chuyển được sang môi trường khác. '
         'RQ1 đánh giá Level 4; RQ2 đánh giá năm level chưa thấy; RQ3 mô tả khác biệt về score, success và kết thúc episode. '
@@ -257,14 +258,15 @@ def build():
     text(s, 'Median: 150\nP25: 1\nP75: 150', 15.1, 4, 3.4, 2.5, 30)
     text(s, 'L4 mean ± SD: 144.49 ± 27.28 | no target cap', 1.3, 8.6, 17.4, .6, 30, bold=True)
 
-    s = start('Checkpoint choice changes transfer', 'Final checkpoint tăng L4 mean lên 153,83 nhưng L3 success giảm từ 93 xuống 83 và L5 từ 74 xuống 65. '
-        'L6 mean tăng nhẹ nhưng success giảm 54 xuống 52. Đây là so sánh mô tả với cùng seed, không tuyên bố khác biệt có ý nghĩa thống kê. '
+    s = start('Best vs final checkpoint', 'Final checkpoint tăng L4 mean lên 153,83 nhưng L3 success giảm từ 93 xuống 83 và L5 từ 74 xuống 65. '
+        'L6 mean tăng nhẹ nhưng success giảm 54 xuống 52. Hai checkpoint dùng cùng seed nên nhóm kiểm định success theo cặp bằng exact McNemar, hiệu chỉnh Holm trên năm level có target. '
+        'Chỉ L3 có p = 0,041 trước hiệu chỉnh; sau hiệu chỉnh mọi level đều có p từ 0,207 trở lên, nên khác biệt transfer giữa hai checkpoint chưa đáng tin về thống kê. '
         'Random mean chỉ 0,02–0,10 và không hoàn thành target nào.')
-    table(s, ['Metric','Selected DQN','Final DQN'], [
-        ['L4 mean score','144.49','153.83'], ['L2 success','97%','99%'],
-        ['L3 success','93%','83%'], ['L5 success','74%','65%'], ['L6 success','54%','52%']],
-        [8,4.8,4.8], rowh=.9)
-    text(s, 'Better source-level score did not consistently improve transfer.', 1.25, 8.15, 17.4, .7, 30, bold=True)
+    table(s, ['Metric','Selected DQN','Final DQN','Holm p'], [
+        ['L4 mean score','144.49','153.83','–'], ['L2 success','97%','99%','1.000'],
+        ['L3 success','93%','83%','0.207'], ['L5 success','74%','65%','0.598'], ['L6 success','54%','52%','1.000']],
+        [6.6,4,4,3], rowh=.9)
+    text(s, 'Higher L4 score; no reliable change in target success (exact McNemar + Holm).', 1.25, 8.15, 17.4, .7, 29, bold=True)
     text(s, 'Random baseline: mean scores 0.02–0.10; no target reached.', 1.25, 8.85, 17.4, .5, 26)
 
     s = start('Where the policy fails', 'L5 timeout 25%, L6 timeout 40%, thường biểu hiện thiếu tiến triển hơn là đâm tường. '
