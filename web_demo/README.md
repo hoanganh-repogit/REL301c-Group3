@@ -1,6 +1,6 @@
 # Snake DQN web demo
 
-The demo serves the frozen `checkpoint_best.pt` policy through FastAPI and animates its episode trace in the browser. It uses CPU inference, so it can deploy to a standard container host.
+The demo serves the frozen `checkpoint_best.pt` policy through FastAPI and animates its episode trace in the browser at three steps every 100 ms. Each level uses the deterministic seed with the highest score in the cross-level evaluation set; the default Level 4 uses seed `1275`. The seed is selected automatically and is not exposed as a demo control. It uses CPU inference, so it can deploy to a standard container host.
 
 ## Local run
 

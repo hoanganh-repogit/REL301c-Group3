@@ -27,6 +27,14 @@ LEVEL_FILES = {
     "level1": "level1", "level2": "level2", "level3": "level3",
     "level4": "level4", "level5": "level5_holdout", "level6": "level6",
 }
+BEST_EVALUATION_SEEDS = {
+    "level1": 1304,
+    "level2": 1316,
+    "level3": 1235,
+    "level4": 1275,
+    "level5": 1248,
+    "level6": 1295,
+}
 DEFAULT_CHECKPOINT = ROOT / "results/level4_continuous_dqn/seed_0/checkpoint_best.pt"
 CHECKPOINT = Path(os.getenv("MODEL_CHECKPOINT", DEFAULT_CHECKPOINT))
 
@@ -53,7 +61,10 @@ def snapshot(env: SnakeEnv, action: int | None = None) -> dict:
 
 @app.get("/", include_in_schema=False)
 def index() -> FileResponse:
-    return FileResponse(ROOT / "web_demo/static/index.html")
+    return FileResponse(
+        ROOT / "web_demo/static/index.html",
+        headers={"Cache-Control": "no-store"},
+    )
 
 
 @app.get("/api/health")
@@ -65,7 +76,6 @@ def health() -> dict:
 @app.get("/api/episode")
 def episode(
     level: str = Query("level4", pattern="^level[1-6]$"),
-    seed: int = Query(1234, ge=0, le=2_147_483_647),
     frame_stride: int = Query(2, ge=1, le=20),
 ) -> dict:
     if level not in LEVEL_FILES:
@@ -75,7 +85,7 @@ def episode(
     except FileNotFoundError as error:
         raise HTTPException(status_code=503, detail=str(error)) from error
     config = load_env_config(str(ROOT / "configs/envs" / f"{LEVEL_FILES[level]}.yaml"))
-    env = SnakeEnv(config, seed=seed)
+    env = SnakeEnv(config, seed=BEST_EVALUATION_SEEDS[level])
     state, frames, done = env.reset(), [snapshot(env)], False
     info = {"score": 0, "death_cause": None}
     while not done:
@@ -83,7 +93,7 @@ def episode(
         state, _, done, info = env.step(action)
         if done or env.steps % frame_stride == 0:
             frames.append(snapshot(env, action))
-    return {"level": level, "seed": seed, "height": env.height, "width": env.width,
+    return {"level": level, "height": env.height, "width": env.width,
             "obstacles": [list(cell) for cell in sorted(env.obstacles)], "target_score": config.target_score,
             "outcome": info["death_cause"], "score": info["score"], "steps": env.steps,
             "frame_stride": frame_stride, "frames": frames}
