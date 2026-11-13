@@ -1,4 +1,17 @@
+param([int]$Port = 8000)
+
 $ErrorActionPreference = 'Stop'
+
+# Windows lets several programs listen on the same port (for example Docker on
+# 127.0.0.1 and uvicorn on 0.0.0.0), and the browser then reaches the wrong one.
+$listeners = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
+if ($listeners) {
+    $owners = $listeners | Select-Object -ExpandProperty OwningProcess -Unique | ForEach-Object {
+        $process = Get-Process -Id $_ -ErrorAction SilentlyContinue
+        if ($process) { "$($process.ProcessName) (PID $_)" } else { "PID $_" }
+    }
+    throw "Port $Port is already in use by: $($owners -join ', '). Stop that program first (for a Docker container: 'docker ps', then 'docker stop <CONTAINER ID>'; for an old demo server: press Ctrl+C in its window), or rerun this script with '-Port 8001'."
+}
 
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $venvPath = Join-Path $projectRoot '.venv-web-demo'
@@ -39,6 +52,9 @@ if ($LASTEXITCODE -ne 0) {
     throw 'Could not install web demo dependencies. Review the pip error above and retry.'
 }
 
-Write-Host 'Open http://127.0.0.1:8000 in a browser. Press Ctrl+C to stop.'
+Write-Host ''
+Write-Host "When you see 'Application startup complete', open http://127.0.0.1:$Port in a browser."
+Write-Host 'Keep this window open while you use the demo. Press Ctrl+C to stop.'
+Write-Host ''
 Set-Location $projectRoot
-& $pythonPath -m uvicorn web_demo.app:app --host 0.0.0.0 --port 8000
+& $pythonPath -m uvicorn web_demo.app:app --host 0.0.0.0 --port $Port

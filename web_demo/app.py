@@ -5,15 +5,18 @@ Run locally from the repository root:
 """
 from __future__ import annotations
 
+import json
 import os
 import sys
+import threading
+from contextlib import asynccontextmanager
 from functools import lru_cache
 from pathlib import Path
 
 import torch
 import yaml
 from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -37,8 +40,30 @@ BEST_EVALUATION_SEEDS = {
 }
 DEFAULT_CHECKPOINT = ROOT / "results/level4_continuous_dqn/seed_0/checkpoint_best.pt"
 CHECKPOINT = Path(os.getenv("MODEL_CHECKPOINT", DEFAULT_CHECKPOINT))
+DEMO_FRAME_STRIDE = 3  # must match the frame_stride sent by static/app.js
 
-app = FastAPI(title="Snake DQN demo", version="1.0.0")
+# The policy runs one tiny forward pass per step. Spreading it over every CPU core
+# makes each step slower, so a single thread is about 2.7x faster on a 20-core PC.
+torch.set_num_threads(1)
+
+
+def _warm_episode_cache() -> None:
+    # Fixed seeds and a frozen model make every episode deterministic, so compute
+    # each level once in the background; "Run episode" then answers immediately.
+    for level in ("level4", *(name for name in LEVEL_FILES if name != "level4")):
+        try:
+            episode_json(level, DEMO_FRAME_STRIDE)
+        except FileNotFoundError:
+            return
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    threading.Thread(target=_warm_episode_cache, name="episode-warmup", daemon=True).start()
+    yield
+
+
+app = FastAPI(title="Snake DQN demo", version="1.0.0", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=ROOT / "web_demo/static"), name="static")
 
 
@@ -77,13 +102,34 @@ def health() -> dict:
 def episode(
     level: str = Query("level4", pattern="^level[1-6]$"),
     frame_stride: int = Query(2, ge=1, le=20),
-) -> dict:
+) -> Response:
     if level not in LEVEL_FILES:
         raise HTTPException(status_code=400, detail="Unsupported level")
     try:
-        agent = load_agent()
+        payload = episode_json(level, frame_stride)
     except FileNotFoundError as error:
         raise HTTPException(status_code=503, detail=str(error)) from error
+    return Response(content=payload, media_type="application/json")
+
+
+_episode_locks: dict[tuple[str, int], threading.Lock] = {}
+
+
+def episode_json(level: str, frame_stride: int) -> bytes:
+    # A request that arrives while the warm-up thread is computing the same level
+    # waits for that result instead of computing it a second time.
+    with _episode_locks.setdefault((level, frame_stride), threading.Lock()):
+        return _cached_episode_json(level, frame_stride)
+
+
+@lru_cache(maxsize=12)
+def _cached_episode_json(level: str, frame_stride: int) -> bytes:
+    # Cache the serialized trace: re-encoding a 2 MB Level 4 trace takes ~2 s.
+    return json.dumps(run_episode(level, frame_stride), separators=(",", ":")).encode()
+
+
+def run_episode(level: str, frame_stride: int) -> dict:
+    agent = load_agent()
     config = load_env_config(str(ROOT / "configs/envs" / f"{LEVEL_FILES[level]}.yaml"))
     env = SnakeEnv(config, seed=BEST_EVALUATION_SEEDS[level])
     state, frames, done = env.reset(), [snapshot(env)], False
