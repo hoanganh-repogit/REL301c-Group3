@@ -6,13 +6,19 @@ Course project for **REL301c** (Reinforcement Learning), FPT University.
 
 A **Dueling Double DQN** agent is trained only on **Level 4** of the Snake game. The network is then frozen and played **without retraining** (zero-shot) on five other levels with different board sizes and obstacle layouts. Research question: how well does a policy learned in a single environment transfer to other environments?
 
-![The agent playing Level 3, a level it never saw during training](docs/demo/demo_level3.gif)
+[![The agent playing Level 6, a level it never saw during training, until it dies](docs/demo/level6_until_death.gif)](docs/demo/level6_until_death.mp4)
 
-*Level 3 (24×24, 16 obstacles), evaluation seed 1234, speed ×4. This is a real episode from the evaluation set, not a hand-picked one.*
+[**Watch the Level 6 video (MP4, 1920×1080, 38 s)**](docs/demo/level6_until_death.mp4)
+
+*The [web demo](web_demo/README.md) playing Level 6 (36×36, 68 obstacles, never seen in training), evaluation seed 1234, 10 steps per video frame (30 per GIF frame). The target of 150 is switched off, so the snake plays on until it dies: it reaches 150 at step 6,230, exactly as in the evaluation episode, then dies at **192 points** by colliding with itself at step 8,886, with a body 195 cells long. The steps after the target are not part of the evaluation set. Recorded from the web demo page with `python scripts/record_web_demo.py`.*
 
 ## Demo video
 
 [**Watch the full demo video (MP4, 2 min 12 s)**](docs/demo/snake_dqn_demo.mp4)
+
+![The agent playing Level 3, a level it never saw during training](docs/demo/demo_level3.gif)
+
+*Level 3 (24×24, 16 obstacles), evaluation seed 1234, speed ×4. This is a real episode from the evaluation set, not a hand-picked one.*
 
 The video replays seven real evaluation episodes with `checkpoint_best.pt` under greedy control (no random actions):
 
@@ -70,7 +76,8 @@ Snake_AI/
 │   ├── play_final_dqn.py          # watch the model play in a pygame window
 │   ├── evaluate_cross_level.py    # greedy evaluation on six levels
 │   ├── evaluate_epsilon_effect.py # greedy versus ε = 0.01 on Levels 4, 5, 6
-│   └── record_demo.py             # record the demo GIF and video from evaluation episodes
+│   ├── record_demo.py             # record the demo GIF and video from evaluation episodes
+│   └── record_web_demo.py         # record the Level 6 video from the web demo page
 ├── results/
 │   ├── level4_continuous_dqn/     # training log and checkpoints
 │   ├── cross_level_evaluation/    # six-level evaluation results
@@ -257,7 +264,16 @@ python -m pip install imageio-ffmpeg==0.6.0
 python scripts/record_demo.py
 ```
 
-The script runs headless, without opening a window, and takes less than a minute. Output goes to `docs/demo/`.
+The script runs headless, without opening a window, and takes less than a minute. It writes `demo_level3.gif` and `snake_dqn_demo.mp4` to `docs/demo/`.
+
+The Level 6 video at the top of this page shows the web demo page itself (`web_demo/static`), played in a headless browser:
+
+```powershell
+python -m pip install playwright imageio-ffmpeg pillow
+python scripts/record_web_demo.py
+```
+
+It uses the installed Microsoft Edge; without Edge, run `python -m playwright install chromium` and add `--browser-channel chromium`. It takes about three minutes and writes `level6_until_death.mp4` (1920×1080) and `level6_until_death.gif`.
 
 ## Report, slides, and web demo
 
